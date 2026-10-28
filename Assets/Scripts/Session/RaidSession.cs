@@ -82,8 +82,17 @@ namespace ChainboundRaid
                 bool valid = helper.Action.Value == RaidAction.Free && helper.ReviveIntent &&
                     Vector3.Distance(helper.transform.position, target.transform.position) <= 2.5f;
                 bool wasDown = target.IsDown;
+                bool hadProgress = target.ReviveProgress.Value > 0f;
+                if (wasDown && valid && !hadProgress)
+                    Debug.Log("COOP_EVENT: RescueStarted target=" + target.OwnerClientId);
+                if (wasDown && !valid && hadProgress)
+                    Debug.Log("COOP_EVENT: RescueCancelled target=" + target.OwnerClientId);
                 target.TickRevive(Time.deltaTime, valid);
-                if (wasDown && !target.IsDown) RevivesUsed.Value++;
+                if (wasDown && !target.IsDown)
+                {
+                    RevivesUsed.Value++;
+                    Debug.Log("COOP_EVENT: RescueCompleted target=" + target.OwnerClientId);
+                }
             }
         }
 

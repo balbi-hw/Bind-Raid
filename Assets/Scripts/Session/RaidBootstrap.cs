@@ -23,6 +23,8 @@ namespace ChainboundRaid
         bool testRevive;
         bool testChain;
         bool chainTestStarted;
+        bool testCooperation;
+        bool cooperationTestStarted;
         bool reviveTestStarted;
         bool testEndSent;
         bool autoReturn;
@@ -62,6 +64,7 @@ namespace ChainboundRaid
             testTimeout = Array.IndexOf(args, "-raidTestTimeout") >= 0;
             testRevive = Array.IndexOf(args, "-raidTestRevive") >= 0;
             testChain = Array.IndexOf(args, "-raidTestChain") >= 0;
+            testCooperation = Array.IndexOf(args, "-raidTestCooperation") >= 0;
             autoReturn = Array.IndexOf(args, "-raidAutoReturn") >= 0;
             if (Array.IndexOf(args, "-raidHost") >= 0)
             {
@@ -90,6 +93,9 @@ namespace ChainboundRaid
             if (manager.IsServer && testChain && !chainTestStarted && RaidSession.Instance != null &&
                 RaidSession.Instance.CurrentState == RaidSessionState.Combat && RaidSession.Instance.Players.Count == 2)
             { chainTestStarted = true; StartCoroutine(RunChainSmoke()); }
+            if (manager.IsServer && testCooperation && !cooperationTestStarted && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState == RaidSessionState.Combat && RaidSession.Instance.Players.Count == 2)
+            { cooperationTestStarted = true; StartCoroutine(RunCooperationSmoke()); }
             if (manager.IsServer && testTimeout && RaidSession.Instance != null)
                 RaidSession.Instance.maxCombatSeconds = 2f;
             if (manager.IsServer && !testEndSent && RaidSession.Instance != null &&
@@ -175,6 +181,39 @@ namespace ChainboundRaid
             controller.enabled = true;
         }
 
+        IEnumerator RunCooperationSmoke()
+        {
+            var first = RaidSession.Instance.Players[0];
+            var second = RaidSession.Instance.Players[1];
+            var chain = RaidChain.Instance;
+            var cooperation = RaidCooperation.Instance;
+            if (chain == null || cooperation == null)
+            { Debug.LogError("COOP_SMOKE: missing component"); yield break; }
+            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
+            TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
+            TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
+            yield return new WaitForSeconds(.3f);
+            bool wrapped = chain.ActiveAnchor.Value == RaidChainAnchor.FrontLeg;
+            first.SetTestCooperation(ChainStance.Braced, true);
+            second.SetTestCooperation(ChainStance.Braced, false);
+            yield return new WaitForSeconds(.2f);
+            bool soloBlocked = cooperation.Gauge.Value == 0f &&
+                (cooperation.FailureReasons.Value & PullFailure.NoSharedHold) != 0;
+            second.SetTestCooperation(ChainStance.Braced, true);
+            yield return new WaitForSeconds(2.5f);
+            bool staggered = RaidBoss.Instance.Staggered.Value;
+            bool success = RaidSession.Instance.ChainSuccesses.Value == 1 &&
+                RaidBoss.Instance.StaggerCount.Value == 1;
+            first.SetTestCooperation(ChainStance.Braced, true);
+            second.SetTestCooperation(ChainStance.Braced, true);
+            yield return new WaitForSeconds(.2f);
+            bool immune = (cooperation.FailureReasons.Value & PullFailure.PartImmune) != 0;
+            Debug.Log("COOP_SMOKE: wrapped=" + wrapped + " soloBlocked=" + soloBlocked +
+                " success=" + success + " staggered=" + staggered + " immune=" + immune);
+            if (!wrapped || !soloBlocked || !success || !staggered || !immune)
+                Debug.LogError("COOP_SMOKE: failed");
+        }
+
         void Approve(NetworkManager.ConnectionApprovalRequest request,
             NetworkManager.ConnectionApprovalResponse response)
         {
@@ -210,7 +249,7 @@ namespace ChainboundRaid
             GUI.skin.button.fixedHeight = 30;
             GUI.skin.textField.fontSize = 15;
             GUI.skin.textField.fixedHeight = 28;
-            GUILayout.BeginArea(new Rect(12, 12, 470, 455), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(12, 12, 500, 515), GUI.skin.box);
             GUILayout.Label("CHAINBOUND RAID | Developer Session");
             if (!manager.IsListening)
             {
@@ -258,6 +297,9 @@ namespace ChainboundRaid
                     GUILayout.Label("HP " + local.Health.Value.ToString("F0") + " | Stamina " + local.Stamina.Value.ToString("F0"));
                     GUILayout.Label("Action " + local.Action.Value + " | Target " +
                         (local.LockEnabled.Value ? local.LockedPart.Value.ToString() : "None"));
+                    GUILayout.Label("Stance " + local.Stance.Value +
+                        (local.StanceChanging.Value ? " (switching)" : "") +
+                        " | Pull " + (local.PullHeld.Value ? "held" : "released"));
                     if (local.IsDown)
                         GUILayout.Label("Revive " + local.ReviveProgress.Value.ToString("F1") + " / " +
                             local.RequiredReviveSeconds.ToString("F0") + " s");
@@ -272,8 +314,13 @@ namespace ChainboundRaid
                     GUILayout.Label("Chain " + RaidChain.Instance.PathLength.Value.ToString("F1") + " m | " +
                         RaidChain.Instance.DistanceBand.Value + " | " + RaidChain.Instance.DisplayState.Value +
                         " | Anchor " + RaidChain.Instance.ActiveAnchor.Value);
+                if (RaidCooperation.Instance != null && RaidCooperation.Instance.IsSpawned)
+                    GUILayout.Label("Suppression " + RaidCooperation.Instance.Gauge.Value.ToString("F0") +
+                        " / 100 | " + RaidCooperationRules.Primary(
+                            RaidCooperation.Instance.FailureReasons.Value));
                 GUILayout.Label("WASD move | Mouse look | Shift sprint | Space dodge");
-                GUILayout.Label("Left/Right click attacks | Tab target part | E revive");
+                GUILayout.Label("Q stance | F pull | E revive | Tab target part");
+                GUILayout.Label("Left/Right click attacks");
             }
             else if (session.CurrentState == RaidSessionState.Result)
             {

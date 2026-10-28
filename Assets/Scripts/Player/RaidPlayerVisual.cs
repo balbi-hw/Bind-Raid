@@ -19,6 +19,8 @@ namespace ChainboundRaid
         RaidAction previousAction;
         float actionAge;
         float displayedSpeed;
+        bool wasChangingStance;
+        float stanceChangeAge;
 
         void Awake()
         {
@@ -43,6 +45,10 @@ namespace ChainboundRaid
         {
             if (modelRoot == null || player == null || !player.IsSpawned) return;
             RaidAction action = player.Action.Value;
+            bool changingStance = player.StanceChanging.Value;
+            if (changingStance && !wasChangingStance) stanceChangeAge = 0f;
+            if (changingStance) stanceChangeAge += Time.deltaTime;
+            wasChangingStance = changingStance;
             if (action != previousAction) { actionAge = 0f; previousAction = action; }
             else actionAge += Time.deltaTime;
 
@@ -56,6 +62,18 @@ namespace ChainboundRaid
             Vector3 angles = Vector3.zero;
             float armSwing = 24f * moveWeight * Mathf.Sin(walkCycle);
             float weaponSwing = 0f;
+            if (action == RaidAction.Free && player.Stance.Value == ChainStance.Braced)
+            {
+                angles.x = player.PullHeld.Value ? -18f : -8f;
+                position.y -= .08f;
+                armSwing = 0f;
+            }
+            if (action == RaidAction.Free && changingStance)
+            {
+                angles.x = -18f * Mathf.Sin(Mathf.Clamp01(stanceChangeAge / .4f) * Mathf.PI);
+                position.y -= .06f;
+                armSwing = 0f;
+            }
 
             switch (action)
             {
@@ -105,7 +123,8 @@ namespace ChainboundRaid
                 RaidAction.Knockdown => new Color(0.95f, 0.2f, 0.35f),
                 RaidAction.Grabbed => new Color(0.85f, 0.2f, 1f),
                 RaidAction.Incapacitated => new Color(0.55f, 0.1f, 0.1f),
-                _ => baseColor
+                _ => player.PullHeld.Value ? new Color(.45f, 1f, .4f) :
+                    player.Stance.Value == ChainStance.Braced ? new Color(.35f, .8f, 1f) : baseColor
             };
             colorBlock.SetColor("_BaseColor", color);
             foreach (var part in coloredParts)

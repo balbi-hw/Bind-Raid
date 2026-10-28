@@ -48,6 +48,10 @@ namespace ChainboundRaid
         public KeyCode forward = KeyCode.W, back = KeyCode.S, left = KeyCode.A, right = KeyCode.D;
         public KeyCode sprint = KeyCode.LeftShift, dodge = KeyCode.Space, weakAttack = KeyCode.Mouse0;
         public KeyCode strongAttack = KeyCode.Mouse1, lockOn = KeyCode.Tab, revive = KeyCode.E;
+        public KeyCode stanceToggle = KeyCode.Q, pull = KeyCode.F;
+        public float stanceTransitionSeconds = .4f;
+        public float stanceCooldownSeconds = 1f;
+        public float bracedSpeedMultiplier = .85f;
 
         public readonly NetworkVariable<float> Health = new NetworkVariable<float>();
         public readonly NetworkVariable<float> Stamina = new NetworkVariable<float>();
@@ -56,6 +60,9 @@ namespace ChainboundRaid
         public readonly NetworkVariable<float> ReviveProgress = new NetworkVariable<float>();
         public readonly NetworkVariable<BossPart> LockedPart = new NetworkVariable<BossPart>();
         public readonly NetworkVariable<bool> LockEnabled = new NetworkVariable<bool>();
+        public readonly NetworkVariable<ChainStance> Stance = new NetworkVariable<ChainStance>();
+        public readonly NetworkVariable<bool> StanceChanging = new NetworkVariable<bool>();
+        public readonly NetworkVariable<bool> PullHeld = new NetworkVariable<bool>();
 
         CharacterController controller;
         float verticalVelocity;
@@ -68,6 +75,15 @@ namespace ChainboundRaid
         bool reviveHeld;
         bool lastSentReviveHeld;
         bool testReviveHold;
+        bool lastSentPullHeld;
+        float stanceChangeAt;
+        float nextStanceAllowed;
+        ChainStance pendingStance;
+        public double PullHeldSince { get; private set; }
+        public bool IsGrounded => controller != null && (controller.isGrounded ||
+            Physics.Raycast(transform.position + Vector3.up * .1f, Vector3.down,
+                1.2f, ~0, QueryTriggerInteraction.Ignore));
+        public bool CanCooperate => Action.Value == RaidAction.Free && !StanceChanging.Value;
 
         public bool IsDown => Action.Value == RaidAction.Incapacitated;
         public float RequiredReviveSeconds => ReviveRules.RequiredSeconds(DownCount.Value);
@@ -77,7 +93,11 @@ namespace ChainboundRaid
         public override void OnNetworkSpawn()
         {
             Debug.Log("RAID_TEST: player spawned owner=" + OwnerClientId + " local=" + IsOwner);
-            if (IsServer) { Health.Value = maxHealth; Stamina.Value = maxStamina; Action.Value = RaidAction.Free; }
+            if (IsServer)
+            {
+                Health.Value = maxHealth; Stamina.Value = maxStamina; Action.Value = RaidAction.Free;
+                Stance.Value = ChainStance.Flexible; StanceChanging.Value = false; PullHeld.Value = false;
+            }
             if (IsOwner)
             {
                 var camera = Camera.main;
@@ -91,6 +111,16 @@ namespace ChainboundRaid
 
         void Update()
         {
+            if (IsServer && StanceChanging.Value)
+            {
+                if (Action.Value != RaidAction.Free) StanceChanging.Value = false;
+                else if (Time.time >= stanceChangeAt)
+                {
+                    Stance.Value = pendingStance;
+                    StanceChanging.Value = false;
+                    Debug.Log("COOP_EVENT: StanceChanged player=" + OwnerClientId + " stance=" + Stance.Value);
+                }
+            }
             if (!IsSpawned || !IsOwner || RaidSession.Instance == null ||
                 RaidSession.Instance.CurrentState != RaidSessionState.Combat) return;
 
@@ -111,6 +141,13 @@ namespace ChainboundRaid
             if (Input.GetKeyDown(lockOn)) CycleLockRpc();
             if (Input.GetKeyDown(weakAttack)) AttackRpc(false, ++localAttackSequence);
             if (Input.GetKeyDown(strongAttack)) AttackRpc(true, ++localAttackSequence);
+            if (Input.GetKeyDown(stanceToggle)) RequestStanceRpc();
+            bool pulling = Input.GetKey(pull);
+            if (pulling != lastSentPullHeld)
+            {
+                lastSentPullHeld = pulling;
+                SetPullIntentRpc(pulling, NetworkManager.ServerTime.Time);
+            }
             bool held = testReviveHold || Input.GetKey(revive);
             if (held != lastSentReviveHeld) { lastSentReviveHeld = held; SetReviveIntentRpc(held); }
         }
@@ -145,7 +182,9 @@ namespace ChainboundRaid
             bool sprinting = !dodging && running && move.sqrMagnitude > 0.01f && Stamina.Value > 0;
             float cost = sprinting ? sprintCostPerSecond * dt : -staminaRecoveryPerSecond * dt;
             Stamina.Value = Mathf.Clamp(Stamina.Value - cost, 0f, maxStamina);
-            Vector3 horizontal = dodging ? dodgeDirection * dodgeSpeed : move * (sprinting ? sprintSpeed : walkSpeed);
+            float stanceFactor = Stance.Value == ChainStance.Braced ? bracedSpeedMultiplier : 1f;
+            Vector3 horizontal = dodging ? dodgeDirection * dodgeSpeed :
+                move * (sprinting ? sprintSpeed : walkSpeed) * stanceFactor;
             if (horizontal.sqrMagnitude > 0.01f) transform.forward = Vector3.Slerp(transform.forward, horizontal.normalized, 12f * dt);
             verticalVelocity = controller.isGrounded ? -1f : verticalVelocity + gravity * dt;
             Vector3 horizontalStep = horizontal * dt;
@@ -193,9 +232,50 @@ namespace ChainboundRaid
         public bool ReviveIntent => reviveHeld;
         public void SetTestReviveHold(bool held) { testReviveHold = held; }
 
+        [Rpc(SendTo.Server)]
+        void RequestStanceRpc()
+        {
+            if (RaidSession.Instance == null || RaidSession.Instance.CurrentState != RaidSessionState.Combat ||
+                Action.Value != RaidAction.Free || StanceChanging.Value || Time.time < nextStanceAllowed)
+            { Debug.Log("COOP_REJECTED: stance player=" + OwnerClientId); return; }
+            pendingStance = Stance.Value == ChainStance.Flexible ? ChainStance.Braced : ChainStance.Flexible;
+            stanceChangeAt = Time.time + stanceTransitionSeconds;
+            nextStanceAllowed = Time.time + stanceCooldownSeconds;
+            StanceChanging.Value = true;
+        }
+
+        [Rpc(SendTo.Server)]
+        void SetPullIntentRpc(bool held, double estimatedServerTime)
+        {
+            if (RaidSession.Instance == null || RaidSession.Instance.CurrentState != RaidSessionState.Combat)
+            { PullHeld.Value = false; return; }
+            if (held && !CanCooperate) { PullHeld.Value = false; return; }
+            PullHeld.Value = held;
+            double now = NetworkManager.ServerTime.Time;
+            PullHeldSince = held ? System.Math.Max(now - .1d, System.Math.Min(estimatedServerTime, now)) : 0d;
+        }
+
+        public void SetTestCooperation(ChainStance stance, bool pulling)
+        {
+            if (!IsServer) return;
+            Stance.Value = stance;
+            StanceChanging.Value = false;
+            PullHeld.Value = pulling;
+            PullHeldSince = pulling ? NetworkManager.ServerTime.Time : 0d;
+        }
+
+        public void CancelPullOnServer()
+        {
+            if (!IsServer) return;
+            PullHeld.Value = false;
+            PullHeldSince = 0d;
+        }
+
         public void ReceiveDamage(float basePower, float enemyAttack, bool knockdown = false)
         {
             if (!IsServer || IsDown || Time.time < dodgeUntil) return;
+            CancelPullOnServer();
+            StanceChanging.Value = false;
             Health.Value = Mathf.Max(0f, Health.Value - DamageCalculator.Calculate(basePower, enemyAttack, defense));
             if (Health.Value <= 0f)
             {
@@ -243,6 +323,11 @@ namespace ChainboundRaid
             reviveHeld = false;
             lastSentReviveHeld = false;
             LockEnabled.Value = false;
+            Stance.Value = ChainStance.Flexible;
+            StanceChanging.Value = false;
+            PullHeld.Value = false;
+            PullHeldSince = 0d;
+            nextStanceAllowed = 0f;
         }
     }
 }

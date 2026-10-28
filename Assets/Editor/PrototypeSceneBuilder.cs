@@ -63,6 +63,7 @@ namespace ChainboundRaid.Editor
             AssetDatabase.SaveAssets();
             PrototypeVisualSetup.Apply();
             PrototypeChainSetup.Apply();
+            PrototypeCooperationSetup.Apply();
         }
 
         [MenuItem("Chainbound Raid/Create Prototype Scene")]

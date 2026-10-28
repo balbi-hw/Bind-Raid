@@ -32,4 +32,5 @@ unity-0102-scene.log
 unity-0102-build.log
 unity-0102-validate.log
 raid-*-smoke.log
+raid-*.log
 unity-*.log

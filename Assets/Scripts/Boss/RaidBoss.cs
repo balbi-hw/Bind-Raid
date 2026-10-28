@@ -18,7 +18,9 @@ namespace ChainboundRaid
         public readonly NetworkVariable<int> StaggerCount = new NetworkVariable<int>();
         public readonly NetworkVariable<bool> Telegraphing = new NetworkVariable<bool>();
         public readonly NetworkVariable<int> StompSequence = new NetworkVariable<int>();
+        public readonly NetworkVariable<bool> Staggered = new NetworkVariable<bool>();
         float nextStomp;
+        float staggerUntil;
 
         void Awake() { Instance = this; }
         public override void OnDestroy()
@@ -34,6 +36,7 @@ namespace ChainboundRaid
             TrunkDurability.Value = partMaxDurability;
             FrontLegDurability.Value = partMaxDurability;
             nextStomp = Time.time + 5f;
+            Staggered.Value = false;
         }
 
         void Update()
@@ -44,6 +47,12 @@ namespace ChainboundRaid
             {
                 if (Telegraphing.Value) Telegraphing.Value = false;
                 return;
+            }
+            if (Staggered.Value)
+            {
+                Telegraphing.Value = false;
+                if (Time.time < staggerUntil) return;
+                Staggered.Value = false;
             }
             if (Time.time < nextStomp)
             {
@@ -77,6 +86,17 @@ namespace ChainboundRaid
             }
         }
 
+        public void ApplyCooperationStagger(float seconds)
+        {
+            if (!IsServer || Health.Value <= 0f) return;
+            StaggerCount.Value++;
+            Staggered.Value = true;
+            Telegraphing.Value = false;
+            staggerUntil = Time.time + Mathf.Max(.1f, seconds);
+            nextStomp = staggerUntil + 2f;
+            Debug.Log("COOP_EVENT: StaggerTriggered count=" + StaggerCount.Value);
+        }
+
         public void ResetForLobby()
         {
             if (!IsServer) return;
@@ -86,6 +106,8 @@ namespace ChainboundRaid
             StaggerCount.Value = 0;
             Telegraphing.Value = false;
             StompSequence.Value = 0;
+            Staggered.Value = false;
+            staggerUntil = 0f;
             nextStomp = Time.time + 5f;
         }
     }
