@@ -62,6 +62,7 @@ namespace ChainboundRaid.Editor
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene("Assets/Scenes/RaidSessionScene.unity", true) };
             AssetDatabase.SaveAssets();
             PrototypeVisualSetup.Apply();
+            PrototypeChainSetup.Apply();
         }
 
         [MenuItem("Chainbound Raid/Create Prototype Scene")]

@@ -21,6 +21,8 @@ namespace ChainboundRaid
         bool testLose;
         bool testTimeout;
         bool testRevive;
+        bool testChain;
+        bool chainTestStarted;
         bool reviveTestStarted;
         bool testEndSent;
         bool autoReturn;
@@ -59,6 +61,7 @@ namespace ChainboundRaid
             testLose = Array.IndexOf(args, "-raidTestLose") >= 0;
             testTimeout = Array.IndexOf(args, "-raidTestTimeout") >= 0;
             testRevive = Array.IndexOf(args, "-raidTestRevive") >= 0;
+            testChain = Array.IndexOf(args, "-raidTestChain") >= 0;
             autoReturn = Array.IndexOf(args, "-raidAutoReturn") >= 0;
             if (Array.IndexOf(args, "-raidHost") >= 0)
             {
@@ -84,6 +87,9 @@ namespace ChainboundRaid
             if (manager.IsServer && testRevive && !reviveTestStarted && RaidSession.Instance != null &&
                 RaidSession.Instance.CurrentState == RaidSessionState.Combat && RaidSession.Instance.Players.Count == 2)
             { reviveTestStarted = true; StartCoroutine(RunReviveSmoke()); }
+            if (manager.IsServer && testChain && !chainTestStarted && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState == RaidSessionState.Combat && RaidSession.Instance.Players.Count == 2)
+            { chainTestStarted = true; StartCoroutine(RunChainSmoke()); }
             if (manager.IsServer && testTimeout && RaidSession.Instance != null)
                 RaidSession.Instance.maxCombatSeconds = 2f;
             if (manager.IsServer && !testEndSent && RaidSession.Instance != null &&
@@ -132,6 +138,43 @@ namespace ChainboundRaid
             }
         }
 
+        IEnumerator RunChainSmoke()
+        {
+            var first = RaidSession.Instance.Players[0];
+            var second = RaidSession.Instance.Players[1];
+            var chain = RaidChain.Instance;
+            if (chain == null) { Debug.LogError("CHAIN_SMOKE: missing chain"); yield break; }
+            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
+            TeleportForTest(first, new Vector3(leg.x, 1f, leg.z - 3f));
+            TeleportForTest(second, new Vector3(leg.x, 1f, leg.z + 3f));
+            yield return new WaitForSeconds(.25f);
+            bool wrapped = chain.ActiveAnchor.Value == RaidChainAnchor.FrontLeg;
+            bool snatched = chain.BeginSnatch();
+            yield return null;
+            bool suspended = snatched && chain.ActiveAnchor.Value == RaidChainAnchor.Trunk &&
+                chain.SuspendedAnchor.Value == RaidChainAnchor.FrontLeg;
+            chain.EndSnatch();
+            yield return null;
+            bool restored = chain.ActiveAnchor.Value == RaidChainAnchor.FrontLeg;
+            Debug.Log("CHAIN_SMOKE: wrapped=" + wrapped + " suspended=" + suspended +
+                " restored=" + restored);
+            if (!wrapped || !suspended || !restored) Debug.LogError("CHAIN_SMOKE: anchor transition failed");
+            TeleportForTest(first, new Vector3(-6f, 1f, -4f));
+            TeleportForTest(second, new Vector3(6f, 1f, -4f));
+            yield return null;
+            bool over = chain.DistanceBand.Value == RaidChainBand.Overstretched;
+            Debug.Log("CHAIN_SMOKE: overstretched=" + over + " length=" + chain.PathLength.Value.ToString("F2"));
+            if (!over) Debug.LogError("CHAIN_SMOKE: overstretch state failed");
+        }
+
+        static void TeleportForTest(RaidPlayer player, Vector3 position)
+        {
+            var controller = player.GetComponent<CharacterController>();
+            controller.enabled = false;
+            player.transform.position = position;
+            controller.enabled = true;
+        }
+
         void Approve(NetworkManager.ConnectionApprovalRequest request,
             NetworkManager.ConnectionApprovalResponse response)
         {
@@ -167,7 +210,7 @@ namespace ChainboundRaid
             GUI.skin.button.fixedHeight = 30;
             GUI.skin.textField.fontSize = 15;
             GUI.skin.textField.fixedHeight = 28;
-            GUILayout.BeginArea(new Rect(12, 12, 470, 410), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(12, 12, 470, 455), GUI.skin.box);
             GUILayout.Label("CHAINBOUND RAID | Developer Session");
             if (!manager.IsListening)
             {
@@ -225,6 +268,10 @@ namespace ChainboundRaid
                     GUILayout.Label("Partner HP " + player.Health.Value.ToString("F0") +
                         " | Distance " + Vector3.Distance(local.transform.position, player.transform.position).ToString("F1") + " m");
                 }
+                if (RaidChain.Instance != null && RaidChain.Instance.IsSpawned)
+                    GUILayout.Label("Chain " + RaidChain.Instance.PathLength.Value.ToString("F1") + " m | " +
+                        RaidChain.Instance.DistanceBand.Value + " | " + RaidChain.Instance.DisplayState.Value +
+                        " | Anchor " + RaidChain.Instance.ActiveAnchor.Value);
                 GUILayout.Label("WASD move | Mouse look | Shift sprint | Space dodge");
                 GUILayout.Label("Left/Right click attacks | Tab target part | E revive");
             }

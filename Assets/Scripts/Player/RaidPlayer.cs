@@ -148,7 +148,10 @@ namespace ChainboundRaid
             Vector3 horizontal = dodging ? dodgeDirection * dodgeSpeed : move * (sprinting ? sprintSpeed : walkSpeed);
             if (horizontal.sqrMagnitude > 0.01f) transform.forward = Vector3.Slerp(transform.forward, horizontal.normalized, 12f * dt);
             verticalVelocity = controller.isGrounded ? -1f : verticalVelocity + gravity * dt;
-            controller.Move((horizontal + Vector3.up * verticalVelocity) * dt);
+            Vector3 horizontalStep = horizontal * dt;
+            if (RaidChain.Instance != null)
+                horizontalStep = RaidChain.Instance.ConstrainMove(this, horizontalStep);
+            controller.Move(horizontalStep + Vector3.up * verticalVelocity * dt);
             if (Action.Value == RaidAction.Dodge && !dodging) Action.Value = RaidAction.Free;
             if ((Action.Value == RaidAction.Attack || Action.Value == RaidAction.StrongAttack ||
                 Action.Value == RaidAction.HitReaction) && now >= attackUntil)
@@ -213,6 +216,20 @@ namespace ChainboundRaid
             Health.Value = maxHealth * reviveHealthFraction;
             ReviveProgress.Value = 0f;
             Action.Value = RaidAction.Free;
+        }
+
+        public void DrainChainStamina(float amount)
+        {
+            if (!IsServer || IsDown) return;
+            Stamina.Value = Mathf.Max(0f, Stamina.Value - Mathf.Max(0f, amount));
+        }
+
+        public void ChainKnockdown()
+        {
+            if (!IsServer || IsDown || Action.Value == RaidAction.Grabbed ||
+                Action.Value == RaidAction.Knockdown) return;
+            Action.Value = RaidAction.Knockdown;
+            attackUntil = Time.time + 1f;
         }
 
         public void ResetForLobby()
