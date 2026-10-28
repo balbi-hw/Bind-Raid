@@ -49,6 +49,7 @@ namespace ChainboundRaid
         public KeyCode sprint = KeyCode.LeftShift, dodge = KeyCode.Space, weakAttack = KeyCode.Mouse0;
         public KeyCode strongAttack = KeyCode.Mouse1, lockOn = KeyCode.Tab, revive = KeyCode.E;
         public KeyCode stanceToggle = KeyCode.Q, pull = KeyCode.F;
+        public KeyCode struggle = KeyCode.R;
         public float stanceTransitionSeconds = .4f;
         public float stanceCooldownSeconds = 1f;
         public float bracedSpeedMultiplier = .85f;
@@ -63,6 +64,7 @@ namespace ChainboundRaid
         public readonly NetworkVariable<ChainStance> Stance = new NetworkVariable<ChainStance>();
         public readonly NetworkVariable<bool> StanceChanging = new NetworkVariable<bool>();
         public readonly NetworkVariable<bool> PullHeld = new NetworkVariable<bool>();
+        public readonly NetworkVariable<bool> StruggleHeld = new NetworkVariable<bool>();
 
         CharacterController controller;
         float verticalVelocity;
@@ -76,6 +78,10 @@ namespace ChainboundRaid
         bool lastSentReviveHeld;
         bool testReviveHold;
         bool lastSentPullHeld;
+        bool lastSentStruggleHeld;
+        Vector3 forcedMoveDirection;
+        float forcedMoveRemaining;
+        float forcedMoveSpeed;
         float stanceChangeAt;
         float nextStanceAllowed;
         ChainStance pendingStance;
@@ -97,6 +103,7 @@ namespace ChainboundRaid
             {
                 Health.Value = maxHealth; Stamina.Value = maxStamina; Action.Value = RaidAction.Free;
                 Stance.Value = ChainStance.Flexible; StanceChanging.Value = false; PullHeld.Value = false;
+                StruggleHeld.Value = false;
             }
             if (IsOwner)
             {
@@ -111,6 +118,12 @@ namespace ChainboundRaid
 
         void Update()
         {
+            if (IsServer && forcedMoveRemaining > 0f)
+            {
+                float step = Mathf.Min(forcedMoveRemaining, forcedMoveSpeed * Time.deltaTime);
+                controller.Move(forcedMoveDirection * step);
+                forcedMoveRemaining -= step;
+            }
             if (IsServer && StanceChanging.Value)
             {
                 if (Action.Value != RaidAction.Free) StanceChanging.Value = false;
@@ -147,6 +160,12 @@ namespace ChainboundRaid
             {
                 lastSentPullHeld = pulling;
                 SetPullIntentRpc(pulling, NetworkManager.ServerTime.Time);
+            }
+            bool struggling = Input.GetKey(struggle);
+            if (struggling != lastSentStruggleHeld)
+            {
+                lastSentStruggleHeld = struggling;
+                SetStruggleIntentRpc(struggling);
             }
             bool held = testReviveHold || Input.GetKey(revive);
             if (held != lastSentReviveHeld) { lastSentReviveHeld = held; SetReviveIntentRpc(held); }
@@ -271,11 +290,44 @@ namespace ChainboundRaid
             PullHeldSince = 0d;
         }
 
+        [Rpc(SendTo.Server)]
+        void SetStruggleIntentRpc(bool held)
+        {
+            StruggleHeld.Value = held && Action.Value == RaidAction.Grabbed;
+        }
+
+        public bool SetGrabbedByBoss()
+        {
+            if (!IsServer || IsDown || Action.Value == RaidAction.Grabbed) return false;
+            Action.Value = RaidAction.Grabbed;
+            CancelPullOnServer();
+            StruggleHeld.Value = false;
+            return true;
+        }
+
+        public void ReleaseBossGrab()
+        {
+            if (!IsServer || Action.Value != RaidAction.Grabbed) return;
+            Action.Value = RaidAction.Free;
+            StruggleHeld.Value = false;
+        }
+
+        public void StartForcedMove(Vector3 direction, float distance, float speedLimit)
+        {
+            if (!IsServer || IsDown) return;
+            direction.y = 0f;
+            if (direction.sqrMagnitude < .001f) return;
+            forcedMoveDirection = direction.normalized;
+            forcedMoveRemaining = Mathf.Max(0f, distance);
+            forcedMoveSpeed = Mathf.Max(.1f, speedLimit);
+        }
+
         public void ReceiveDamage(float basePower, float enemyAttack, bool knockdown = false)
         {
             if (!IsServer || IsDown || Time.time < dodgeUntil) return;
             CancelPullOnServer();
             StanceChanging.Value = false;
+            forcedMoveRemaining = 0f;
             Health.Value = Mathf.Max(0f, Health.Value - DamageCalculator.Calculate(basePower, enemyAttack, defense));
             if (Health.Value <= 0f)
             {
@@ -327,6 +379,8 @@ namespace ChainboundRaid
             StanceChanging.Value = false;
             PullHeld.Value = false;
             PullHeldSince = 0d;
+            StruggleHeld.Value = false;
+            forcedMoveRemaining = 0f;
             nextStanceAllowed = 0f;
         }
     }

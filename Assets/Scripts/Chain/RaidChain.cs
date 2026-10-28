@@ -72,6 +72,9 @@ namespace ChainboundRaid
                 RaidChainState.Taut => new Color(1f, .75f, .15f),
                 _ => new Color(.65f, .85f, 1f)
             };
+            if (RaidBoss.Instance != null && RaidBoss.Instance.Stage.Value == BossAttackStage.Telegraph &&
+                RaidBoss.Instance.CurrentAttack.Value == BossAttack.ChainSnatch)
+                color = Color.red;
             line.startColor = line.endColor = color;
         }
 

@@ -25,6 +25,11 @@ namespace ChainboundRaid
         bool chainTestStarted;
         bool testCooperation;
         bool cooperationTestStarted;
+        bool testBoss;
+        bool bossTestStarted;
+        bool testPing;
+        int pingTestIndex;
+        float nextPingTestTime;
         bool reviveTestStarted;
         bool testEndSent;
         bool autoReturn;
@@ -65,6 +70,8 @@ namespace ChainboundRaid
             testRevive = Array.IndexOf(args, "-raidTestRevive") >= 0;
             testChain = Array.IndexOf(args, "-raidTestChain") >= 0;
             testCooperation = Array.IndexOf(args, "-raidTestCooperation") >= 0;
+            testBoss = Array.IndexOf(args, "-raidTestBoss") >= 0;
+            testPing = Array.IndexOf(args, "-raidTestPing") >= 0;
             autoReturn = Array.IndexOf(args, "-raidAutoReturn") >= 0;
             if (Array.IndexOf(args, "-raidHost") >= 0)
             {
@@ -96,6 +103,21 @@ namespace ChainboundRaid
             if (manager.IsServer && testCooperation && !cooperationTestStarted && RaidSession.Instance != null &&
                 RaidSession.Instance.CurrentState == RaidSessionState.Combat && RaidSession.Instance.Players.Count == 2)
             { cooperationTestStarted = true; StartCoroutine(RunCooperationSmoke()); }
+            if (manager.IsServer && testBoss && !bossTestStarted && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState == RaidSessionState.Combat && RaidSession.Instance.Players.Count == 2)
+            { bossTestStarted = true; StartCoroutine(RunBossSmoke()); }
+            if (testPing && pingTestIndex < 4 && manager.IsConnectedClient && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState == RaidSessionState.Combat)
+            {
+                if (nextPingTestTime <= 0f)
+                    nextPingTestTime = Time.time + (manager.IsHost ? 0f : .45f);
+                if (Time.time >= nextPingTestTime)
+                {
+                    RaidSession.Instance.SendPingRpc((RaidPing)pingTestIndex);
+                    pingTestIndex++;
+                    nextPingTestTime = Time.time + .9f;
+                }
+            }
             if (manager.IsServer && testTimeout && RaidSession.Instance != null)
                 RaidSession.Instance.maxCombatSeconds = 2f;
             if (manager.IsServer && !testEndSent && RaidSession.Instance != null &&
@@ -212,6 +234,85 @@ namespace ChainboundRaid
                 " success=" + success + " staggered=" + staggered + " immune=" + immune);
             if (!wrapped || !soloBlocked || !success || !staggered || !immune)
                 Debug.LogError("COOP_SMOKE: failed");
+        }
+
+        IEnumerator RunBossSmoke()
+        {
+            var boss = RaidBoss.Instance;
+            var first = RaidSession.Instance.Players[0];
+            var second = RaidSession.Instance.Players[1];
+            TeleportForTest(first, boss.transform.position + new Vector3(0f, -1f, -3f));
+            TeleportForTest(second, boss.transform.position + new Vector3(6f, -1f, 0f));
+            boss.ForceAttackForTest(BossAttack.Stomp);
+            yield return new WaitForSeconds(boss.settings.stompTelegraph + .2f);
+            bool stomp = first.Health.Value < first.maxHealth;
+            float beforeSweep = first.Health.Value;
+            boss.ForceAttackForTest(BossAttack.TrunkSweep);
+            yield return new WaitForSeconds(boss.settings.sweepTelegraph + .2f);
+            bool sweep = first.Health.Value < beforeSweep;
+            TeleportForTest(first, boss.transform.position + new Vector3(0f, -1f, -3f));
+            Vector3 beforeCharge = boss.transform.position;
+            boss.ForceAttackForTest(BossAttack.Charge);
+            yield return new WaitForSeconds(boss.settings.chargeTelegraph + 1.1f);
+            bool charge = Vector3.Distance(beforeCharge, boss.transform.position) > 3f;
+            TeleportForTest(first, boss.transform.position + new Vector3(-2f, -1f, 0f));
+            TeleportForTest(second, boss.transform.position + new Vector3(2f, -1f, 0f));
+            boss.ForceAttackForTest(BossAttack.ChainSnatch);
+            yield return new WaitForSeconds(boss.settings.snatchTelegraph + .2f);
+            bool snatchAvoided = boss.Stage.Value == BossAttackStage.Recovery;
+            first.Health.Value = second.Health.Value = 100f;
+            first.Action.Value = second.Action.Value = RaidAction.Free;
+            TeleportForTest(first, boss.transform.position + new Vector3(-4f, -1f, 0f));
+            TeleportForTest(second, boss.transform.position + new Vector3(4f, -1f, 0f));
+            boss.ForceAttackForTest(BossAttack.ChainSnatch);
+            yield return new WaitForSeconds(boss.settings.snatchTelegraph + .2f);
+            bool snatchActive = boss.Stage.Value == BossAttackStage.Active &&
+                RaidChain.Instance.ActiveAnchor.Value == RaidChainAnchor.Trunk;
+            yield return new WaitForSeconds(boss.settings.snatchResponse + 1f);
+            bool snatchHit = first.Health.Value < 100f && second.Health.Value < 100f;
+            first.Health.Value = second.Health.Value = 100f;
+            first.Action.Value = second.Action.Value = RaidAction.Free;
+            Vector3 leg = boss.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
+            TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
+            TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
+            boss.ForceAttackForTest(BossAttack.ChainSnatch);
+            yield return new WaitForSeconds(boss.settings.snatchTelegraph + .2f);
+            bool snatchResponseOpen = boss.Stage.Value == BossAttackStage.Active;
+            first.SetTestCooperation(ChainStance.Braced, true);
+            second.SetTestCooperation(ChainStance.Braced, true);
+            yield return new WaitForSeconds(2.2f);
+            bool snatchCountered = snatchResponseOpen && boss.Staggered.Value &&
+                first.Health.Value == 100f && second.Health.Value == 100f &&
+                RaidChain.Instance.ActiveAnchor.Value != RaidChainAnchor.Trunk;
+            first.SetTestCooperation(ChainStance.Flexible, false);
+            second.SetTestCooperation(ChainStance.Flexible, false);
+            TeleportForTest(first, boss.transform.position + new Vector3(3.5f, -1f, 0f));
+            TeleportForTest(second, boss.transform.position + new Vector3(0f, -1f, -2.5f));
+            boss.ForceAttackForTest(BossAttack.SpinGrab);
+            yield return new WaitForSeconds(boss.settings.spinTelegraph + .2f);
+            bool spinGrabbed = second.Action.Value == RaidAction.Grabbed && first.Action.Value != RaidAction.Grabbed;
+            first.SetTestReviveHold(true);
+            yield return new WaitForSeconds(boss.settings.spinRescueSeconds + .3f);
+            first.SetTestReviveHold(false);
+            bool spinRescued = second.Action.Value == RaidAction.Free && second.Health.Value == 100f;
+            first.Health.Value = second.Health.Value = 100f;
+            boss.ForceAttackForTest(BossAttack.SpinGrab);
+            yield return new WaitForSeconds(boss.settings.spinTelegraph + boss.settings.spinDuration + .3f);
+            bool spinSafe = first.Health.Value == 100f;
+            bool spinLanding = second.Health.Value < 100f && second.Action.Value != RaidAction.Grabbed;
+            boss.Health.Value = boss.maxHealth * .49f;
+            yield return null;
+            bool phaseTwo = boss.Phase.Value == 2;
+            Debug.Log("BOSS_SMOKE: stomp=" + stomp + " sweep=" + sweep + " charge=" + charge +
+                " snatchAvoided=" + snatchAvoided + " snatchActive=" + snatchActive +
+                " snatchHit=" + snatchHit + " snatchCountered=" + snatchCountered +
+                " spinGrabbed=" + spinGrabbed +
+                " spinRescued=" + spinRescued + " spinSafe=" + spinSafe +
+                " spinLanding=" + spinLanding + " phaseTwo=" + phaseTwo);
+            if (!stomp || !sweep || !charge || !snatchAvoided || !snatchActive ||
+                !snatchHit || !snatchCountered || !spinGrabbed || !spinRescued ||
+                !spinSafe || !spinLanding || !phaseTwo)
+                Debug.LogError("BOSS_SMOKE: failed");
         }
 
         void Approve(NetworkManager.ConnectionApprovalRequest request,

@@ -98,6 +98,8 @@ namespace ChainboundRaid
                     break;
                 case RaidAction.Grabbed:
                     angles.z = 30f;
+                    angles.y = Time.time * 240f * (RaidBoss.Instance != null ?
+                        RaidBoss.Instance.SpinSpeedFactor.Value : 1f);
                     position.y += 0.15f;
                     break;
                 case RaidAction.Incapacitated:

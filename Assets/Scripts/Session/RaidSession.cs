@@ -6,6 +6,7 @@ namespace ChainboundRaid
 {
     public enum RaidSessionState { Lobby, Tutorial, Combat, Result, Disconnected }
     public enum RaidResultReason { None, BossDefeated, BothPlayersDown, TimeLimit, ConnectionLost }
+    public enum RaidPing { Approach, Pull, Release, Rescue }
 
     [RequireComponent(typeof(NetworkObject))]
     public sealed class RaidSession : NetworkBehaviour
@@ -24,7 +25,15 @@ namespace ChainboundRaid
         public readonly NetworkVariable<int> ChainAttempts = new NetworkVariable<int>();
         public readonly NetworkVariable<int> ChainSuccesses = new NetworkVariable<int>();
         public readonly NetworkVariable<int> StaggerCount = new NetworkVariable<int>();
+        public readonly NetworkVariable<int> PingSequence = new NetworkVariable<int>();
+        public readonly NetworkVariable<RaidPing> PingKind = new NetworkVariable<RaidPing>();
+        public readonly NetworkVariable<ulong> PingSender = new NetworkVariable<ulong>();
+        public readonly NetworkVariable<int> PingServerTick = new NetworkVariable<int>();
+        public readonly NetworkVariable<double> PingServerTime = new NetworkVariable<double>();
+        readonly float[,] lastPingAt = new float[2, 4];
         public float maxCombatSeconds = 18f * 60f;
+        public float pingRepeatCooldown = 1.5f;
+        public float pingDisplaySeconds = 3f;
         public readonly List<RaidPlayer> Players = new List<RaidPlayer>(2);
         float combatStartTime;
 
@@ -143,6 +152,23 @@ namespace ChainboundRaid
         {
             if (!IsServer || CurrentState == RaidSessionState.Result) return;
             Finish(RaidResultReason.ConnectionLost);
+        }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        public void SendPingRpc(RaidPing kind, RpcParams rpcParams = default)
+        {
+            if (CurrentState != RaidSessionState.Combat || (int)kind < 0 || (int)kind > 3) return;
+            int slot = SlotOf(rpcParams.Receive.SenderClientId);
+            if (slot < 0) return;
+            if (Time.time - lastPingAt[slot, (int)kind] < pingRepeatCooldown) return;
+            lastPingAt[slot, (int)kind] = Time.time;
+            PingKind.Value = kind;
+            PingSender.Value = rpcParams.Receive.SenderClientId;
+            PingServerTick.Value = NetworkManager.ServerTime.Tick;
+            PingServerTime.Value = NetworkManager.ServerTime.Time;
+            PingSequence.Value++;
+            Debug.Log("HUD_EVENT: Ping kind=" + kind + " sender=" + PingSender.Value +
+                " tick=" + PingServerTick.Value);
         }
 
         void Finish(RaidResultReason reason)
