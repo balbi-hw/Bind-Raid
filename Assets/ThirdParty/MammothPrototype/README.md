@@ -1,6 +1,7 @@
 # Fantasy mammoth prototype model
 
-Source: user supplied `C:/Users/SSAFY/Downloads/fantasy mammoth 3d model.glb`.
+Source: original model made and supplied by the project owner as
+`C:/Users/SSAFY/Downloads/fantasy mammoth 3d model.glb`.
 The original GLB contains one mesh, three textures, no skeleton, and no
 animation clips. `fantasy-mammoth.fbx` was converted with Blender 4.5.15 and
 decimated from 501,124 to 125,280 triangles for this prototype. The base
@@ -8,8 +9,9 @@ color and normal textures were extracted without modification. The
 metallic/roughness texture is retained but is not currently used by the URP
 material.
 
-The source file did not include license metadata. Confirm its usage rights
-before distributing this art outside the project team.
+The project owner confirmed on 2026-10-30 that they made this model and
+authorized its use in tester builds shared outside the project team. This
+confirmation does not grant others a separate license to reuse the model.
 
 ## Prototype rig and animation
 

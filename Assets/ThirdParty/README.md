@@ -4,7 +4,7 @@
   textures are kept from the original download. See
   `KenneyBlockyCharacters/License.txt` and
   https://opengameart.org/content/blocky-characters.
-- Current boss: user supplied `fantasy mammoth 3d model.glb`, converted to a
+- Current boss: project owner-created `fantasy mammoth 3d model.glb`, converted to a
   decimated FBX with its base color and normal textures for Unity. See
   `MammothPrototype/README.md`.
 - Previous boss placeholder: syncopika's low poly elephant, CC0. See

@@ -49,7 +49,8 @@ namespace ChainboundRaid.Editor
                 "Source: https://opengameart.org/content/chain\n" +
                 "License: Creative Commons Attribution 4.0 International (CC BY 4.0).\n" +
                 "https://creativecommons.org/licenses/by/4.0/\n" +
-                "Mammoth boss model: user supplied. Distribution rights must be confirmed before external sharing.\n");
+                "Mammoth boss model: original work by the project owner, included with permission for tester distribution.\n" +
+                "No separate permission to reuse this model is granted.\n");
         }
 
         [MenuItem("Chainbound Raid/Build Windows Dedicated Server")]

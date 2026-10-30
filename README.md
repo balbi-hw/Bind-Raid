@@ -17,7 +17,7 @@
 
 Unity에서 `Assets/Scenes/RaidSessionScene.unity`를 열거나 `Chainbound Raid > Build Client and Dedicated Server`로 빌드합니다. `Builds/Server/ChainboundRaidServer.exe`를 먼저 실행하고, 두 PC에서 `Builds/Windows/ChainboundRaid.exe`를 실행합니다. 각 클라이언트에서 서버 IP를 입력하고 **Join server**를 누릅니다. 같은 PC에서 시험한다면 기본 주소 `127.0.0.1`을 사용합니다. 두 사람이 **Toggle ready**를 누르면 2인 튜토리얼로 이동합니다. 사슬 거리, 자세, 공동 당기기, 낚아채기 대응, 회전 구조를 순서대로 완료하면 전투가 시작됩니다. 개발용 빌드에서는 튜토리얼 건너뛰기 버튼을 사용할 수 있습니다.
 
-테스터용 클라이언트는 `Chainbound Raid > Build Tester Client`로 별도 빌드한 뒤 `tools/package_tester.ps1`로 압축합니다. 이 빌드에는 건너뛰기 버튼이 없습니다. 배포 절차와 조작은 [테스터 안내](docs/TESTER_GUIDE.md)를 참고하세요. 코끼리 보스 모델의 외부 배포 권한은 확인 전이므로 현재 압축 파일은 프로젝트 내부 시험용입니다.
+테스터용 클라이언트는 `Chainbound Raid > Build Tester Client`로 별도 빌드한 뒤 `tools/package_tester.ps1`로 압축합니다. 이 빌드에는 건너뛰기 버튼이 없습니다. 배포 절차와 조작은 [테스터 안내](docs/TESTER_GUIDE.md)를 참고하세요. 코끼리 보스 모델은 프로젝트 소유자가 직접 제작했고 테스터 빌드 공유를 허용했습니다.
 
 개발용 클라이언트와 서버를 빌드한 뒤 `tools/run_regression.ps1`을 실행하면 튜토리얼·보스·구조·승리 4개 사례를 서버와 두 클라이언트에서 자동으로 확인합니다. 결과는 `Builds/Regression/`에 저장됩니다.
 
