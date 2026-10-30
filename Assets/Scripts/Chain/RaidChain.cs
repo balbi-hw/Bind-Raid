@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace ChainboundRaid
 {
@@ -20,6 +21,11 @@ namespace ChainboundRaid
         public float wrapRadius = .65f;
         public float wrapReleaseRadius = 1.25f;
 
+        [Header("Visual chain links")]
+        public GameObject chainLinkPrefab;
+        public Material chainMaterial;
+        public float linkSpacing = .27f;
+
         public readonly NetworkVariable<float> PathLength = new NetworkVariable<float>();
         public readonly NetworkVariable<RaidChainBand> DistanceBand = new NetworkVariable<RaidChainBand>();
         public readonly NetworkVariable<RaidChainState> DisplayState = new NetworkVariable<RaidChainState>();
@@ -34,6 +40,10 @@ namespace ChainboundRaid
         RaidPlayer clientFirst;
         RaidPlayer clientSecond;
         bool loggedCombatPath;
+        bool loggedVisualLinks;
+        readonly List<GameObject> visualLinks = new List<GameObject>();
+        readonly List<Renderer[]> visualRenderers = new List<Renderer[]>();
+        MaterialPropertyBlock linkColorBlock;
 
         void Awake() { Instance = this; line = GetComponent<LineRenderer>(); }
         public override void OnNetworkSpawn()
@@ -54,16 +64,15 @@ namespace ChainboundRaid
         void LateUpdate()
         {
             if (!IsSpawned || line == null) return;
-            if (RaidSession.Instance == null || RaidSession.Instance.CurrentState != RaidSessionState.Combat)
-            { line.enabled = false; return; }
-            if (!TryPlayers(out var first, out var second)) { line.enabled = false; return; }
-            line.enabled = true;
+            if (!IsClient) { line.enabled = false; return; }
+            if (RaidSession.Instance == null ||
+                (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial))
+            { line.enabled = false; HideVisualLinks(); return; }
+            if (!TryPlayers(out var first, out var second))
+            { line.enabled = false; HideVisualLinks(); return; }
             Vector3 a = Waist(first), b = Waist(second);
             Vector3? anchor = AnchorPoint(ActiveAnchor.Value);
-            line.positionCount = anchor.HasValue ? 3 : 2;
-            line.SetPosition(0, a);
-            if (anchor.HasValue) line.SetPosition(1, anchor.Value);
-            line.SetPosition(line.positionCount - 1, b);
             Color color = DisplayState.Value switch
             {
                 RaidChainState.Snatched => new Color(1f, .15f, .15f),
@@ -75,7 +84,80 @@ namespace ChainboundRaid
             if (RaidBoss.Instance != null && RaidBoss.Instance.Stage.Value == BossAttackStage.Telegraph &&
                 RaidBoss.Instance.CurrentAttack.Value == BossAttack.ChainSnatch)
                 color = Color.red;
-            line.startColor = line.endColor = color;
+            if (chainLinkPrefab != null && chainMaterial != null)
+            {
+                line.enabled = false;
+                RenderLinks(a, anchor, b, color);
+            }
+            else
+            {
+                HideVisualLinks();
+                line.enabled = true;
+                line.positionCount = anchor.HasValue ? 3 : 2;
+                line.SetPosition(0, a);
+                if (anchor.HasValue) line.SetPosition(1, anchor.Value);
+                line.SetPosition(line.positionCount - 1, b);
+                line.startColor = line.endColor = color;
+            }
+        }
+
+        void RenderLinks(Vector3 a, Vector3? anchor, Vector3 b, Color color)
+        {
+            int used = 0;
+            if (anchor.HasValue)
+            {
+                used = RenderSegment(a, anchor.Value, used, color);
+                used = RenderSegment(anchor.Value, b, used, color);
+            }
+            else used = RenderSegment(a, b, used, color);
+            for (int i = used; i < visualLinks.Count; i++) visualLinks[i].SetActive(false);
+            if (!loggedVisualLinks)
+            {
+                loggedVisualLinks = true;
+                Debug.Log("CHAIN_VISUAL: 3D links active=" + used);
+            }
+        }
+
+        int RenderSegment(Vector3 start, Vector3 end, int index, Color color)
+        {
+            if (index >= 64) return index;
+            Vector3 delta = end - start;
+            float distance = delta.magnitude;
+            if (distance < .01f) return index;
+            int count = Mathf.Clamp(Mathf.CeilToInt(distance / Mathf.Max(.1f, linkSpacing)), 1, 64 - index);
+            Quaternion facing = Quaternion.LookRotation(delta);
+            if (linkColorBlock == null) linkColorBlock = new MaterialPropertyBlock();
+            linkColorBlock.SetColor("_BaseColor", color);
+            for (int i = 0; i < count; i++)
+            {
+                EnsureVisualLink(index);
+                var holder = visualLinks[index];
+                holder.SetActive(true);
+                holder.transform.position = Vector3.Lerp(start, end, (i + .5f) / count);
+                holder.transform.rotation = facing * Quaternion.Euler(0f, 0f, index % 2 == 0 ? 0f : 90f);
+                foreach (var renderer in visualRenderers[index]) renderer.SetPropertyBlock(linkColorBlock);
+                index++;
+            }
+            return index;
+        }
+
+        void EnsureVisualLink(int index)
+        {
+            while (visualLinks.Count <= index)
+            {
+                var holder = new GameObject("Visual Chain Link " + visualLinks.Count.ToString("00"));
+                holder.transform.SetParent(transform, false);
+                var model = Instantiate(chainLinkPrefab, holder.transform, false);
+                var renderers = model.GetComponentsInChildren<Renderer>(true);
+                foreach (var renderer in renderers) renderer.sharedMaterial = chainMaterial;
+                visualLinks.Add(holder);
+                visualRenderers.Add(renderers);
+            }
+        }
+
+        void HideVisualLinks()
+        {
+            foreach (var link in visualLinks) link.SetActive(false);
         }
 
         public Vector3 ConstrainMove(RaidPlayer moving, Vector3 displacement)
@@ -93,7 +175,9 @@ namespace ChainboundRaid
         void TickServer()
         {
             if (!TryPlayers(out var first, out var second)) { ResetState(); return; }
-            bool combat = RaidSession.Instance != null && RaidSession.Instance.CurrentState == RaidSessionState.Combat;
+            bool combat = RaidSession.Instance != null &&
+                (RaidSession.Instance.CurrentState == RaidSessionState.Combat ||
+                 RaidSession.Instance.CurrentState == RaidSessionState.Tutorial);
             if (!combat) { ResetState(); return; }
             if (snatched && !AnchorPoint(RaidChainAnchor.Trunk).HasValue) EndSnatch();
             UpdateWrap(first, second);
@@ -154,7 +238,8 @@ namespace ChainboundRaid
         public bool BeginSnatch()
         {
             if (!IsServer || snatched || RaidSession.Instance == null ||
-                RaidSession.Instance.CurrentState != RaidSessionState.Combat ||
+                (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial) ||
                 !AnchorPoint(RaidChainAnchor.Trunk).HasValue) return false;
             SuspendedAnchor.Value = ActiveAnchor.Value == RaidChainAnchor.FrontLeg ?
                 RaidChainAnchor.FrontLeg : RaidChainAnchor.None;
@@ -242,9 +327,9 @@ namespace ChainboundRaid
             var boss = RaidBoss.Instance;
             if (boss == null || !boss.IsSpawned || boss.Health.Value <= 0f) return null;
             if (anchor == RaidChainAnchor.FrontLeg && boss.FrontLegDurability.Value > 0f)
-                return boss.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
+                return boss.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
             if (anchor == RaidChainAnchor.Trunk && boss.TrunkDurability.Value > 0f)
-                return boss.transform.TransformPoint(new Vector3(0f, .06f, -.58f));
+                return boss.transform.TransformPoint(RaidBoss.TrunkAnchorLocal);
             return null;
         }
 

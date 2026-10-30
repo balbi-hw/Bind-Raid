@@ -1,0 +1,6 @@
+Low poly elephant model by syncopika
+Source: https://opengameart.org/content/low-poly-elephant-model
+License: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+
+elephant-lowpoly.blend is the original download. elephant.fbx was exported
+from that file with Blender 4.5.15 for use in this Unity prototype.

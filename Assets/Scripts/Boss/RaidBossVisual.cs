@@ -12,11 +12,16 @@ namespace ChainboundRaid
         public LineRenderer stompRing;
         public LineRenderer attackTelegraph;
         public LineRenderer rescueRing;
+        public Animator bossAnimator;
+        public Renderer[] bossRenderers;
 
         RaidBoss boss;
         MaterialPropertyBlock colorBlock;
         int previousStomp;
         float stompFlash;
+        string currentAnimation;
+        BossAttackStage previousStage;
+        float recoveryAnimationUntil;
 
         void Awake()
         {
@@ -44,6 +49,32 @@ namespace ChainboundRaid
             bool warning = boss.Stage.Value == BossAttackStage.Telegraph &&
                 boss.CurrentAttack.Value == BossAttack.Stomp;
             bool staggered = boss.Staggered.Value;
+            if (boss.Stage.Value == BossAttackStage.Recovery && previousStage != BossAttackStage.Recovery)
+                recoveryAnimationUntil = Time.time + (boss.CurrentAttack.Value == BossAttack.Stomp ? 1f :
+                    boss.CurrentAttack.Value == BossAttack.TrunkSweep ? 1.2f : 0f);
+            string animation = "Idle";
+            if (staggered) animation = "Stagger";
+            else if (boss.Stage.Value == BossAttackStage.Telegraph) animation = "Telegraph";
+            else if (boss.Stage.Value == BossAttackStage.Active)
+            {
+                animation = boss.CurrentAttack.Value switch
+                {
+                    BossAttack.Stomp => "Stomp",
+                    BossAttack.TrunkSweep => "TrunkSweep",
+                    BossAttack.Charge => "Charge",
+                    BossAttack.ChainSnatch => "TrunkSweep",
+                    BossAttack.SpinGrab => "TrunkSweep",
+                    _ => "Idle"
+                };
+            }
+            else if (boss.Stage.Value == BossAttackStage.Recovery && Time.time < recoveryAnimationUntil)
+                animation = boss.CurrentAttack.Value == BossAttack.Stomp ? "Stomp" : "TrunkSweep";
+            if (bossAnimator != null && animation != currentAnimation)
+            {
+                bossAnimator.Play(animation, 0, 0f);
+                currentAnimation = animation;
+            }
+            previousStage = boss.Stage.Value;
             if (boss.StompSequence.Value != previousStomp)
             { previousStomp = boss.StompSequence.Value; stompFlash = 0.25f; }
             stompFlash = Mathf.Max(0f, stompFlash - Time.deltaTime);
@@ -58,6 +89,11 @@ namespace ChainboundRaid
             Color bodyColor = staggered ? new Color(.35f, .85f, 1f) : stompFlash > 0f ? Color.white : warning ?
                 new Color(1f, 0.25f, 0.12f) : new Color(0.46f, 0.31f, 0.5f);
             SetColor(body, bodyColor);
+            if (bossRenderers != null)
+                foreach (var renderer in bossRenderers)
+                    SetColor(renderer, staggered ? new Color(.55f, .85f, 1f) :
+                        stompFlash > 0f ? Color.white : warning ? new Color(1f, .55f, .45f) :
+                        Color.white);
             SetColor(trunk, boss.TrunkDurability.Value > 0f ? new Color(0.95f, 0.63f, 0.22f) : Color.gray);
             SetColor(frontLeg, boss.FrontLegDurability.Value > 0f ? new Color(0.9f, 0.67f, 0.24f) : Color.gray);
             if (stompRing != null)
@@ -109,13 +145,14 @@ namespace ChainboundRaid
             if (attack == BossAttack.Charge)
             {
                 Vector3 side = Vector3.Cross(Vector3.up, direction) * boss.settings.chargeWidth;
-                Vector3 end = origin + direction * boss.settings.chargeDistance;
+                Vector3 start = origin - direction * boss.settings.chargeBodyBack;
+                Vector3 end = origin + direction * (boss.settings.chargeDistance + boss.settings.chargeBodyFront);
                 attackTelegraph.loop = true;
                 attackTelegraph.positionCount = 4;
-                attackTelegraph.SetPosition(0, origin + side);
+                attackTelegraph.SetPosition(0, start + side);
                 attackTelegraph.SetPosition(1, end + side);
                 attackTelegraph.SetPosition(2, end - side);
-                attackTelegraph.SetPosition(3, origin - side);
+                attackTelegraph.SetPosition(3, start - side);
             }
             else if (attack == BossAttack.TrunkSweep)
             {

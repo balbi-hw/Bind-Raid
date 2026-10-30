@@ -42,7 +42,7 @@ namespace ChainboundRaid
         public float strongBasePower = 55f;
         public float weakPartPower = 20f;
         public float strongPartPower = 45f;
-        public float attackRange = 4.5f;
+        public float attackRange = 2.6f;
 
         [Header("Keyboard and mouse")]
         public KeyCode forward = KeyCode.W, back = KeyCode.S, left = KeyCode.A, right = KeyCode.D;
@@ -135,7 +135,8 @@ namespace ChainboundRaid
                 }
             }
             if (!IsSpawned || !IsOwner || RaidSession.Instance == null ||
-                RaidSession.Instance.CurrentState != RaidSessionState.Combat) return;
+                (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial)) return;
 
             Vector2 input = new Vector2((Input.GetKey(right) ? 1 : 0) - (Input.GetKey(left) ? 1 : 0),
                 (Input.GetKey(forward) ? 1 : 0) - (Input.GetKey(back) ? 1 : 0));
@@ -174,7 +175,9 @@ namespace ChainboundRaid
         [Rpc(SendTo.Server)]
         void SubmitMoveRpc(Vector3 move, bool running, bool roll)
         {
-            if (RaidSession.Instance == null || RaidSession.Instance.CurrentState != RaidSessionState.Combat || IsDown)
+            if (RaidSession.Instance == null ||
+                (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial) || IsDown)
             {
                 if (roll) Debug.Log("RAID_ACTION_REJECTED: dodge / unavailable state");
                 return;
@@ -236,7 +239,7 @@ namespace ChainboundRaid
             { Debug.Log("RAID_ACTION_REJECTED: attack / unavailable state"); return; }
             if (strong && Stamina.Value < strongCost)
             { Debug.Log("RAID_ACTION_REJECTED: strong attack / stamina"); return; }
-            if (Vector3.Distance(transform.position, RaidBoss.Instance.transform.position) > attackRange)
+            if (RaidBoss.Instance.DistanceToBodySurface(transform.position) > attackRange)
             { Debug.Log("RAID_ACTION_REJECTED: attack / out of range"); return; }
             if (strong) Stamina.Value -= strongCost;
             Action.Value = strong ? RaidAction.StrongAttack : RaidAction.Attack;
@@ -249,12 +252,18 @@ namespace ChainboundRaid
         public void SetReviveIntentRpc(bool held) { reviveHeld = held; }
 
         public bool ReviveIntent => reviveHeld;
-        public void SetTestReviveHold(bool held) { testReviveHold = held; }
+        public void SetTestReviveHold(bool held)
+        {
+            testReviveHold = held;
+            if (IsServer) reviveHeld = held;
+        }
 
         [Rpc(SendTo.Server)]
         void RequestStanceRpc()
         {
-            if (RaidSession.Instance == null || RaidSession.Instance.CurrentState != RaidSessionState.Combat ||
+            if (RaidSession.Instance == null ||
+                (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial) ||
                 Action.Value != RaidAction.Free || StanceChanging.Value || Time.time < nextStanceAllowed)
             { Debug.Log("COOP_REJECTED: stance player=" + OwnerClientId); return; }
             pendingStance = Stance.Value == ChainStance.Flexible ? ChainStance.Braced : ChainStance.Flexible;
@@ -266,7 +275,9 @@ namespace ChainboundRaid
         [Rpc(SendTo.Server)]
         void SetPullIntentRpc(bool held, double estimatedServerTime)
         {
-            if (RaidSession.Instance == null || RaidSession.Instance.CurrentState != RaidSessionState.Combat)
+            if (RaidSession.Instance == null ||
+                (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial))
             { PullHeld.Value = false; return; }
             if (held && !CanCooperate) { PullHeld.Value = false; return; }
             PullHeld.Value = held;
@@ -382,6 +393,16 @@ namespace ChainboundRaid
             StruggleHeld.Value = false;
             forcedMoveRemaining = 0f;
             nextStanceAllowed = 0f;
+        }
+
+        public void ResetForTutorial()
+        {
+            if (!IsServer) return;
+            Health.Value = maxHealth;
+            Stamina.Value = maxStamina;
+            Action.Value = RaidAction.Free;
+            ReviveProgress.Value = 0f;
+            forcedMoveRemaining = 0f;
         }
     }
 }

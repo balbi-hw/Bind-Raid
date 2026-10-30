@@ -12,6 +12,10 @@ namespace ChainboundRaid
         public Transform weapon;
         public Renderer[] coloredParts;
         public LineRenderer statusRing;
+        public GameObject firstCharacter;
+        public GameObject secondCharacter;
+        public Animator firstAnimator;
+        public Animator secondAnimator;
 
         RaidPlayer player;
         MaterialPropertyBlock colorBlock;
@@ -21,6 +25,8 @@ namespace ChainboundRaid
         float displayedSpeed;
         bool wasChangingStance;
         float stanceChangeAge;
+        int visibleCharacter = -1;
+        string currentAnimation;
 
         void Awake()
         {
@@ -55,6 +61,32 @@ namespace ChainboundRaid
             float speed = (transform.position - previousPosition).magnitude / Mathf.Max(Time.deltaTime, 0.001f);
             previousPosition = transform.position;
             displayedSpeed = Mathf.Lerp(displayedSpeed, Mathf.Min(speed, 8f), 10f * Time.deltaTime);
+            var session = RaidSession.Instance;
+            int character = session != null && session.FirstPlayerClientId.Value == player.OwnerClientId ? 0 : 1;
+            if (visibleCharacter != character)
+            {
+                if (firstCharacter != null) firstCharacter.SetActive(character == 0);
+                if (secondCharacter != null) secondCharacter.SetActive(character == 1);
+                visibleCharacter = character;
+                currentAnimation = null;
+            }
+            Animator animator = character == 0 ? firstAnimator : secondAnimator;
+            string animation = action switch
+            {
+                RaidAction.Attack => "attack-melee-right",
+                RaidAction.StrongAttack => "attack-melee-left",
+                RaidAction.Dodge => "sprint",
+                RaidAction.HitReaction => "emote-no",
+                RaidAction.Knockdown or RaidAction.Incapacitated => "die",
+                RaidAction.Grabbed => "emote-no",
+                _ => player.PullHeld.Value ? "holding-both" :
+                    displayedSpeed > 4f ? "sprint" : displayedSpeed > .15f ? "walk" : "idle"
+            };
+            if (animator != null && animation != currentAnimation)
+            {
+                animator.Play(animation, 0, 0f);
+                currentAnimation = animation;
+            }
             float moveWeight = action == RaidAction.Free ? Mathf.Clamp01(displayedSpeed / 4f) : 0f;
             float walkCycle = Time.time * (6f + displayedSpeed);
             Vector3 position = Vector3.up * (0.025f * Mathf.Sin(Time.time * 2f) +

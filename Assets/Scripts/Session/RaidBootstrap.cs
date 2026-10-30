@@ -15,6 +15,9 @@ namespace ChainboundRaid
         string address = "127.0.0.1";
         string connectionMessage;
         bool autoFlow;
+        bool autoReady;
+        bool testTutorial;
+        bool tutorialTestStarted;
         bool readySent;
         bool tutorialSent;
         bool testWin;
@@ -63,7 +66,13 @@ namespace ChainboundRaid
         void Start()
         {
             var args = Environment.GetCommandLineArgs();
+            bool dedicatedServer = Array.IndexOf(args, "-raidServer") >= 0;
+#if UNITY_SERVER
+            dedicatedServer = true;
+#endif
             autoFlow = Array.IndexOf(args, "-raidAutoFlow") >= 0;
+            autoReady = Array.IndexOf(args, "-raidAutoReady") >= 0;
+            testTutorial = Array.IndexOf(args, "-raidTestTutorial") >= 0;
             testWin = Array.IndexOf(args, "-raidTestWin") >= 0;
             testLose = Array.IndexOf(args, "-raidTestLose") >= 0;
             testTimeout = Array.IndexOf(args, "-raidTestTimeout") >= 0;
@@ -73,10 +82,10 @@ namespace ChainboundRaid
             testBoss = Array.IndexOf(args, "-raidTestBoss") >= 0;
             testPing = Array.IndexOf(args, "-raidTestPing") >= 0;
             autoReturn = Array.IndexOf(args, "-raidAutoReturn") >= 0;
-            if (Array.IndexOf(args, "-raidHost") >= 0)
+            if (dedicatedServer)
             {
                 transport.SetConnectionData("127.0.0.1", 7777, "0.0.0.0");
-                Debug.Log("RAID_TEST: host started=" + manager.StartHost());
+                Debug.Log("RAID_TEST: dedicated server started=" + manager.StartServer());
             }
             else if (Array.IndexOf(args, "-raidClient") >= 0)
             {
@@ -87,6 +96,9 @@ namespace ChainboundRaid
 
         void Update()
         {
+            if (manager.IsServer && testTutorial && !tutorialTestStarted && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState == RaidSessionState.Tutorial && RaidSession.Instance.Players.Count == 2)
+            { tutorialTestStarted = true; StartCoroutine(RunTutorialSmoke()); }
             if (autoReturn && !returnSent && manager.IsConnectedClient && RaidSession.Instance != null &&
                 RaidSession.Instance.CurrentState == RaidSessionState.Result)
             {
@@ -133,16 +145,67 @@ namespace ChainboundRaid
                     Debug.Log("RAID_TEST: forced both players down");
                 }
             }
-            if (!autoFlow || !manager.IsConnectedClient || RaidSession.Instance == null ||
+            if ((!autoFlow && !autoReady) || !manager.IsConnectedClient || RaidSession.Instance == null ||
                 !RaidSession.Instance.IsSpawned) return;
             var state = RaidSession.Instance.CurrentState;
             if (state == RaidSessionState.Lobby && !readySent && manager.LocalClient != null &&
                 manager.LocalClient.PlayerObject != null)
             { readySent = true; RaidSession.Instance.SetReadyRpc(true); }
-            if (state == RaidSessionState.Tutorial && !tutorialSent)
+            if (autoFlow && state == RaidSessionState.Tutorial && !tutorialSent)
             { tutorialSent = true; RaidSession.Instance.CompleteTutorialRpc(); }
             if (state == RaidSessionState.Combat && tutorialSent)
             { Debug.Log("RAID_TEST: combat entered"); autoFlow = false; }
+        }
+
+        IEnumerator RunTutorialSmoke()
+        {
+            var session = RaidSession.Instance;
+            var first = session.Players[0];
+            var second = session.Players[1];
+            var boss = RaidBoss.Instance;
+            TeleportForTest(first, new Vector3(-4f, 1f, -4f));
+            TeleportForTest(second, new Vector3(4f, 1f, -4f));
+            yield return new WaitForSeconds(.3f);
+            TeleportForTest(first, new Vector3(-1f, 1f, -4f));
+            TeleportForTest(second, new Vector3(1f, 1f, -4f));
+            yield return new WaitForSeconds(.3f);
+            first.SetTestCooperation(ChainStance.Braced, false);
+            second.SetTestCooperation(ChainStance.Braced, false);
+            yield return new WaitForSeconds(.3f);
+            first.SetTestCooperation(ChainStance.Flexible, false);
+            second.SetTestCooperation(ChainStance.Flexible, false);
+            yield return new WaitForSeconds(.3f);
+            Vector3 leg = boss.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
+            TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
+            TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
+            yield return new WaitForSeconds(.3f);
+            Debug.Log("TUTORIAL_SMOKE: wrap=" + RaidChain.Instance.ActiveAnchor.Value +
+                " path=" + RaidChain.Instance.PathLength.Value.ToString("F1") +
+                " leg=" + leg + " first=" + first.transform.position + " second=" + second.transform.position +
+                " durability=" + boss.FrontLegDurability.Value);
+            first.SetTestCooperation(ChainStance.Braced, true);
+            second.SetTestCooperation(ChainStance.Braced, true);
+            yield return new WaitForSeconds(3f);
+            first.SetTestCooperation(ChainStance.Flexible, false);
+            second.SetTestCooperation(ChainStance.Flexible, false);
+            TeleportForTest(first, boss.transform.position + new Vector3(-4f, -1f, 0f));
+            TeleportForTest(second, boss.transform.position + new Vector3(4f, -1f, 0f));
+            yield return new WaitUntil(() => session.TutorialStep.Value >= 4 ||
+                boss.CurrentAttack.Value == BossAttack.ChainSnatch && boss.Stage.Value == BossAttackStage.Telegraph);
+            if (session.TutorialStep.Value == 3)
+            {
+                TeleportForTest(first, boss.transform.position + new Vector3(-1f, -1f, -3f));
+                TeleportForTest(second, boss.transform.position + new Vector3(1f, -1f, -3f));
+            }
+            yield return new WaitUntil(() => session.TutorialStep.Value >= 4);
+            TeleportForTest(second, boss.transform.position + new Vector3(0f, -1f, -2.5f));
+            yield return new WaitUntil(() => second.Action.Value == RaidAction.Grabbed);
+            Vector3 rescue = boss.RescuePoint;
+            TeleportForTest(first, new Vector3(rescue.x, 1f, rescue.z));
+            first.SetTestReviveHold(true);
+            yield return new WaitUntil(() => session.CurrentState == RaidSessionState.Combat);
+            first.SetTestReviveHold(false);
+            Debug.Log("TUTORIAL_SMOKE: completed all five steps");
         }
 
         IEnumerator RunReviveSmoke()
@@ -172,7 +235,7 @@ namespace ChainboundRaid
             var second = RaidSession.Instance.Players[1];
             var chain = RaidChain.Instance;
             if (chain == null) { Debug.LogError("CHAIN_SMOKE: missing chain"); yield break; }
-            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
+            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
             TeleportForTest(first, new Vector3(leg.x, 1f, leg.z - 3f));
             TeleportForTest(second, new Vector3(leg.x, 1f, leg.z + 3f));
             yield return new WaitForSeconds(.25f);
@@ -211,7 +274,7 @@ namespace ChainboundRaid
             var cooperation = RaidCooperation.Instance;
             if (chain == null || cooperation == null)
             { Debug.LogError("COOP_SMOKE: missing component"); yield break; }
-            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
+            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
             TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
             TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
             yield return new WaitForSeconds(.3f);
@@ -244,8 +307,10 @@ namespace ChainboundRaid
             TeleportForTest(first, boss.transform.position + new Vector3(0f, -1f, -3f));
             TeleportForTest(second, boss.transform.position + new Vector3(6f, -1f, 0f));
             boss.ForceAttackForTest(BossAttack.Stomp);
+            bool facing = Vector3.Dot(boss.transform.forward, boss.AttackDirection.Value) > .99f;
             yield return new WaitForSeconds(boss.settings.stompTelegraph + .2f);
             bool stomp = first.Health.Value < first.maxHealth;
+            bool expandedStomp = second.Health.Value < second.maxHealth;
             float beforeSweep = first.Health.Value;
             boss.ForceAttackForTest(BossAttack.TrunkSweep);
             yield return new WaitForSeconds(boss.settings.sweepTelegraph + .2f);
@@ -272,9 +337,12 @@ namespace ChainboundRaid
             bool snatchHit = first.Health.Value < 100f && second.Health.Value < 100f;
             first.Health.Value = second.Health.Value = 100f;
             first.Action.Value = second.Action.Value = RaidAction.Free;
-            Vector3 leg = boss.transform.TransformPoint(new Vector3(.37f, -.25f, -.32f));
-            TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
-            TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
+            // Keep the long chain taut while both players remain within its hard limit
+            // after the trunk anchor follows the boss's facing direction.
+            Vector3 nearTrunk = boss.transform.position + boss.transform.forward * 4f;
+            Vector3 oppositeSide = boss.transform.position + boss.transform.right * 6f;
+            TeleportForTest(first, new Vector3(nearTrunk.x, 1f, nearTrunk.z));
+            TeleportForTest(second, new Vector3(oppositeSide.x, 1f, oppositeSide.z));
             boss.ForceAttackForTest(BossAttack.ChainSnatch);
             yield return new WaitForSeconds(boss.settings.snatchTelegraph + .2f);
             bool snatchResponseOpen = boss.Stage.Value == BossAttackStage.Active;
@@ -289,6 +357,8 @@ namespace ChainboundRaid
             TeleportForTest(first, boss.transform.position + new Vector3(3.5f, -1f, 0f));
             TeleportForTest(second, boss.transform.position + new Vector3(0f, -1f, -2.5f));
             boss.ForceAttackForTest(BossAttack.SpinGrab);
+            Vector3 rescue = boss.RescuePoint;
+            TeleportForTest(first, new Vector3(rescue.x, 1f, rescue.z));
             yield return new WaitForSeconds(boss.settings.spinTelegraph + .2f);
             bool spinGrabbed = second.Action.Value == RaidAction.Grabbed && first.Action.Value != RaidAction.Grabbed;
             first.SetTestReviveHold(true);
@@ -303,13 +373,14 @@ namespace ChainboundRaid
             boss.Health.Value = boss.maxHealth * .49f;
             yield return null;
             bool phaseTwo = boss.Phase.Value == 2;
-            Debug.Log("BOSS_SMOKE: stomp=" + stomp + " sweep=" + sweep + " charge=" + charge +
+            Debug.Log("BOSS_SMOKE: facing=" + facing + " expandedStomp=" + expandedStomp +
+                " stomp=" + stomp + " sweep=" + sweep + " charge=" + charge +
                 " snatchAvoided=" + snatchAvoided + " snatchActive=" + snatchActive +
                 " snatchHit=" + snatchHit + " snatchCountered=" + snatchCountered +
                 " spinGrabbed=" + spinGrabbed +
                 " spinRescued=" + spinRescued + " spinSafe=" + spinSafe +
                 " spinLanding=" + spinLanding + " phaseTwo=" + phaseTwo);
-            if (!stomp || !sweep || !charge || !snatchAvoided || !snatchActive ||
+            if (!facing || !expandedStomp || !stomp || !sweep || !charge || !snatchAvoided || !snatchActive ||
                 !snatchHit || !snatchCountered || !spinGrabbed || !spinRescued ||
                 !spinSafe || !spinLanding || !phaseTwo)
                 Debug.LogError("BOSS_SMOKE: failed");
@@ -345,6 +416,7 @@ namespace ChainboundRaid
 
         void OnGUI()
         {
+            if (!manager.IsClient && manager.IsListening) return;
             GUI.skin.label.fontSize = 15;
             GUI.skin.button.fontSize = 15;
             GUI.skin.button.fixedHeight = 30;
@@ -354,11 +426,9 @@ namespace ChainboundRaid
             GUILayout.Label("CHAINBOUND RAID | Developer Session");
             if (!manager.IsListening)
             {
-                GUILayout.Label("Host address:");
+                GUILayout.Label("Server address:");
                 address = GUILayout.TextField(address);
-                if (GUILayout.Button("Host (port 7777)"))
-                { transport.SetConnectionData("127.0.0.1", 7777, "0.0.0.0"); manager.StartHost(); connectionMessage = ""; }
-                if (GUILayout.Button("Join"))
+                if (GUILayout.Button("Join server (port 7777)"))
                 { transport.SetConnectionData(address, 7777); manager.StartClient(); connectionMessage = ""; }
                 GUILayout.Label(connectionMessage);
                 GUILayout.EndArea(); return;
@@ -373,14 +443,46 @@ namespace ChainboundRaid
                 GUILayout.Label("Ready: " + session.FirstReady.Value + " / " + session.SecondReady.Value);
                 if (GUILayout.Button("Toggle ready"))
                 {
-                    bool ready = manager.LocalClientId == 0 ? session.FirstReady.Value : session.SecondReady.Value;
+                    bool ready = manager.LocalClientId == session.FirstPlayerClientId.Value ?
+                        session.FirstReady.Value : session.SecondReady.Value;
                     session.SetReadyRpc(!ready);
                 }
             }
             else if (session.CurrentState == RaidSessionState.Tutorial)
             {
-                GUILayout.Label("Tutorial objectives are pending feature 08.");
-                if (GUILayout.Button("Developer: complete tutorial")) session.CompleteTutorialRpc();
+                GUILayout.Label("TUTORIAL " + (session.TutorialStep.Value + 1) + "/5 — both players share progress");
+                switch (session.TutorialStep.Value)
+                {
+                    case 0:
+                        GUILayout.Label("Move apart until the chain turns yellow, then move together.");
+                        GUILayout.Label("Chain: " + (RaidChain.Instance != null ? RaidChain.Instance.DistanceBand.Value.ToString() : "waiting"));
+                        break;
+                    case 1:
+                        GUILayout.Label("Each player: press Q to brace, then Q again to relax.");
+                        GUILayout.Label("Progress: " + System.Convert.ToString(session.TutorialProgress.Value, 2).PadLeft(4, '0'));
+                        break;
+                    case 2:
+                        GUILayout.Label("Stand on opposite sides of the boss's front leg.");
+                        GUILayout.Label("Both press Q to brace, then hold F together.");
+                        if (RaidCooperation.Instance != null)
+                            GUILayout.Label("Pull: " + RaidCooperation.Instance.Gauge.Value.ToString("F0") +
+                                " | " + RaidCooperationRules.Primary(RaidCooperation.Instance.FailureReasons.Value));
+                        break;
+                    case 3:
+                        GUILayout.Label("Keep the chain taut to trigger the practice snatch.");
+                        GUILayout.Label("Chain snatch: approach before it catches the chain,");
+                        GUILayout.Label("or brace and hold F together to counter it.");
+                        break;
+                    case 4:
+                        GUILayout.Label("Player 2: approach the boss to trigger a grab; hold R to resist.");
+                        GUILayout.Label("Player 1: stand at the green rescue point and hold E.");
+                        if (RaidBoss.Instance != null)
+                            GUILayout.Label("Rescue: " + RaidBoss.Instance.SpinRescueProgress.Value.ToString("F1") + " s");
+                        break;
+                }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                if (GUILayout.Button("Developer: skip tutorial")) session.CompleteTutorialRpc();
+#endif
             }
             else if (session.CurrentState == RaidSessionState.Combat)
             {

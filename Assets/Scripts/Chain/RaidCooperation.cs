@@ -31,7 +31,8 @@ namespace ChainboundRaid
         {
             if (!IsServer || settings == null) return;
             var session = RaidSession.Instance;
-            if (session == null || session.CurrentState != RaidSessionState.Combat ||
+            if (session == null ||
+                (session.CurrentState != RaidSessionState.Combat && session.CurrentState != RaidSessionState.Tutorial) ||
                 session.Players.Count != 2 || RaidBoss.Instance == null || RaidChain.Instance == null)
             { ResetForLobby(); return; }
 

@@ -13,16 +13,18 @@ MonoBehaviour:
   m_Name: BossSettings
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidBossSettings
   stompTelegraph: 1.2
-  stompRadius: 4
+  stompRadius: 6.5
   stompPower: 30
   chargeTelegraph: 1.5
-  chargeDistance: 8
-  chargeWidth: 1.3
+  chargeDistance: 10
+  chargeWidth: 3.2
+  chargeBodyFront: 4.5
+  chargeBodyBack: 3.5
   chargeSpeed: 9
   chargePower: 34
   sweepTelegraph: 1
-  sweepRadius: 4.5
-  sweepHalfAngle: 60
+  sweepRadius: 7.5
+  sweepHalfAngle: 70
   sweepPower: 22
   sweepPushDistance: 1.2
   snatchTelegraph: 1.4
@@ -32,6 +34,7 @@ MonoBehaviour:
   forcedMoveSpeedLimit: 3
   spinTelegraph: 1.8
   spinDuration: 2.5
+  spinGrabRange: 7
   spinLandingPower: 28
   spinTensionPower: 20
   spinRescueSeconds: 1.5

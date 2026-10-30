@@ -66,6 +66,7 @@ namespace ChainboundRaid.Editor
             PrototypeCooperationSetup.Apply();
             PrototypeBossSetup.Apply();
             PrototypeHudSetup.Apply();
+            PrototypeArenaSetup.Apply();
         }
 
         [MenuItem("Chainbound Raid/Create Prototype Scene")]

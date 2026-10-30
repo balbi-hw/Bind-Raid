@@ -18,8 +18,11 @@ namespace ChainboundRaid
         public RaidResultReason CurrentResult => (RaidResultReason)((Status.Value >> 8) & 0xff);
         public readonly NetworkVariable<bool> FirstReady = new NetworkVariable<bool>();
         public readonly NetworkVariable<bool> SecondReady = new NetworkVariable<bool>();
+        public readonly NetworkVariable<ulong> FirstPlayerClientId = new NetworkVariable<ulong>(ulong.MaxValue);
         public readonly NetworkVariable<bool> FirstTutorialDone = new NetworkVariable<bool>();
         public readonly NetworkVariable<bool> SecondTutorialDone = new NetworkVariable<bool>();
+        public readonly NetworkVariable<int> TutorialStep = new NetworkVariable<int>();
+        public readonly NetworkVariable<int> TutorialProgress = new NetworkVariable<int>();
         public readonly NetworkVariable<float> CombatSeconds = new NetworkVariable<float>();
         public readonly NetworkVariable<int> RevivesUsed = new NetworkVariable<int>();
         public readonly NetworkVariable<int> ChainAttempts = new NetworkVariable<int>();
@@ -36,6 +39,10 @@ namespace ChainboundRaid
         public float pingDisplaySeconds = 3f;
         public readonly List<RaidPlayer> Players = new List<RaidPlayer>(2);
         float combatStartTime;
+        int tutorialFlags;
+        int tutorialBaseline;
+        int tutorialStaggerBaseline;
+        bool tutorialAttackStarted;
 
         void Awake() { Instance = this; }
         public override void OnDestroy()
@@ -72,6 +79,8 @@ namespace ChainboundRaid
         {
             if (!IsServer) return;
             RefreshPlayers();
+            if (CurrentState == RaidSessionState.Tutorial)
+            { TickTutorial(); return; }
             if (CurrentState != RaidSessionState.Combat) return;
             CombatSeconds.Value = Time.time - combatStartTime;
             if (RaidBoss.Instance != null) StaggerCount.Value = RaidBoss.Instance.StaggerCount.Value;
@@ -105,6 +114,84 @@ namespace ChainboundRaid
             }
         }
 
+        void TickTutorial()
+        {
+            if (Players.Count != 2 || RaidChain.Instance == null || RaidBoss.Instance == null) return;
+            var chain = RaidChain.Instance;
+            var boss = RaidBoss.Instance;
+            switch (TutorialStep.Value)
+            {
+                case 0:
+                    if (chain.DistanceBand.Value != RaidChainBand.Slack) tutorialFlags |= 1;
+                    if ((tutorialFlags & 1) != 0 && chain.DistanceBand.Value == RaidChainBand.Slack)
+                        AdvanceTutorial();
+                    break;
+                case 1:
+                    for (int i = 0; i < 2; i++)
+                    {
+                        if (Players[i].Stance.Value == ChainStance.Braced) tutorialFlags |= 1 << i;
+                        if ((tutorialFlags & (1 << i)) != 0 && Players[i].Stance.Value == ChainStance.Flexible)
+                            tutorialFlags |= 1 << (i + 2);
+                    }
+                    TutorialProgress.Value = tutorialFlags;
+                    if ((tutorialFlags & 15) == 15) AdvanceTutorial();
+                    break;
+                case 2:
+                    if (ChainSuccesses.Value > tutorialBaseline) AdvanceTutorial();
+                    break;
+                case 3:
+                    if (!tutorialAttackStarted && boss.Stage.Value == BossAttackStage.Idle &&
+                        chain.PathLength.Value >= chain.warningLength)
+                    { tutorialAttackStarted = true; boss.ForceTutorialAttack(BossAttack.ChainSnatch, Players[1]); }
+                    if (boss.SnatchAvoidCount > tutorialBaseline || boss.StaggerCount.Value > tutorialStaggerBaseline)
+                        AdvanceTutorial();
+                    else if (tutorialAttackStarted && boss.Stage.Value == BossAttackStage.Recovery)
+                        tutorialAttackStarted = false;
+                    break;
+                case 4:
+                    if (!tutorialAttackStarted && boss.Stage.Value == BossAttackStage.Idle &&
+                        Vector3.Distance(Players[1].transform.position, boss.transform.position) <= boss.settings.spinGrabRange)
+                    { tutorialAttackStarted = true; boss.ForceTutorialAttack(BossAttack.SpinGrab, Players[1]); }
+                    if (boss.SpinRescueCount > tutorialBaseline) AdvanceTutorial();
+                    else if (tutorialAttackStarted && boss.Stage.Value == BossAttackStage.Recovery)
+                        tutorialAttackStarted = false;
+                    break;
+            }
+            // Practice damage never ends the hunt; restore players between attempts.
+            for (int i = 0; i < 2; i++)
+                if (Players[i].IsDown) Players[i].ResetForTutorial();
+        }
+
+        void AdvanceTutorial()
+        {
+            int next = TutorialStep.Value + 1;
+            Debug.Log("TUTORIAL_EVENT: completed step=" + TutorialStep.Value);
+            tutorialFlags = 0;
+            tutorialAttackStarted = false;
+            TutorialProgress.Value = 0;
+            if (next >= 5)
+            {
+                foreach (var player in Players) player.ResetForTutorial();
+                RaidBoss.Instance.ResetForLobby();
+                RaidChain.Instance.ResetState();
+                RaidCooperation.Instance.ResetForLobby();
+                FirstTutorialDone.Value = SecondTutorialDone.Value = true;
+                SetStatus(RaidSessionState.Combat, RaidResultReason.None);
+                combatStartTime = Time.time;
+                Debug.Log("TUTORIAL_EVENT: combat unlocked");
+                return;
+            }
+            TutorialStep.Value = next;
+            tutorialBaseline = next switch
+            {
+                2 => ChainSuccesses.Value,
+                3 => RaidBoss.Instance.SnatchAvoidCount,
+                4 => RaidBoss.Instance.SpinRescueCount,
+                _ => 0
+            };
+            if (next == 3) tutorialStaggerBaseline = RaidBoss.Instance.StaggerCount.Value;
+        }
+
         void RefreshPlayers()
         {
             Players.Clear();
@@ -115,6 +202,7 @@ namespace ChainboundRaid
                 if (player != null) Players.Add(player);
             }
             Players.Sort((a, b) => a.OwnerClientId.CompareTo(b.OwnerClientId));
+            FirstPlayerClientId.Value = Players.Count > 0 ? Players[0].OwnerClientId : ulong.MaxValue;
         }
 
         int SlotOf(ulong clientId)
@@ -133,12 +221,19 @@ namespace ChainboundRaid
             if (slot == 0) FirstReady.Value = ready;
             if (slot == 1) SecondReady.Value = ready;
             if (Players.Count == 2 && FirstReady.Value && SecondReady.Value)
+            {
+                TutorialStep.Value = 0; TutorialProgress.Value = 0;
+                tutorialFlags = 0; tutorialAttackStarted = false;
                 SetStatus(RaidSessionState.Tutorial, RaidResultReason.None);
+            }
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void CompleteTutorialRpc(RpcParams rpcParams = default)
         {
+#if !UNITY_EDITOR && !DEVELOPMENT_BUILD
+            return;
+#endif
             if (CurrentState != RaidSessionState.Tutorial) return;
             RefreshPlayers();
             int slot = SlotOf(rpcParams.Receive.SenderClientId);
@@ -184,6 +279,7 @@ namespace ChainboundRaid
             SetStatus(RaidSessionState.Lobby, RaidResultReason.None);
             FirstReady.Value = SecondReady.Value = false;
             FirstTutorialDone.Value = SecondTutorialDone.Value = false;
+            TutorialStep.Value = TutorialProgress.Value = 0;
             CombatSeconds.Value = 0f;
             RevivesUsed.Value = 0;
             if (RaidBoss.Instance != null) RaidBoss.Instance.ResetForLobby();

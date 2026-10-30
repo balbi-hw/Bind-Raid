@@ -77,9 +77,9 @@ namespace ChainboundRaid.Editor
             Transform model = EnsureChild(root.transform, "Boss Status Model");
             Renderer body = Shape(model, "Body", PrimitiveType.Cube, Vector3.zero, Vector3.one, lit);
             Renderer trunk = Shape(model, "Trunk Target", PrimitiveType.Capsule,
-                new Vector3(0, .06f, -.58f), new Vector3(.25f, .38f, .22f), lit);
+                RaidBoss.TrunkAnchorLocal, new Vector3(.25f, .38f, .22f), lit);
             Renderer leg = Shape(model, "Front Leg Target", PrimitiveType.Capsule,
-                new Vector3(.37f, -.45f, -.32f), new Vector3(.2f, .38f, .2f), lit);
+                RaidBoss.FrontLegAnchorLocal, new Vector3(.2f, .38f, .2f), lit);
             LineRenderer ring = Ring(root.transform, "Stomp Warning Ring", unlit);
             RaidBossVisual visual = root.GetComponent<RaidBossVisual>();
             if (visual == null) visual = root.AddComponent<RaidBossVisual>();
