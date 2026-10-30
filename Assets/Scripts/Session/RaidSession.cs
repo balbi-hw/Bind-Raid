@@ -123,6 +123,7 @@ namespace ChainboundRaid
             {
                 case 0:
                     if (chain.DistanceBand.Value != RaidChainBand.Slack) tutorialFlags |= 1;
+                    TutorialProgress.Value = tutorialFlags;
                     if ((tutorialFlags & 1) != 0 && chain.DistanceBand.Value == RaidChainBand.Slack)
                         AdvanceTutorial();
                     break;

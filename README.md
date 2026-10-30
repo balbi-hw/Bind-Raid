@@ -17,6 +17,8 @@
 
 Unity에서 `Assets/Scenes/RaidSessionScene.unity`를 열거나 `Chainbound Raid > Build Client and Dedicated Server`로 빌드합니다. `Builds/Server/ChainboundRaidServer.exe`를 먼저 실행하고, 두 PC에서 `Builds/Windows/ChainboundRaid.exe`를 실행합니다. 각 클라이언트에서 서버 IP를 입력하고 **Join server**를 누릅니다. 같은 PC에서 시험한다면 기본 주소 `127.0.0.1`을 사용합니다. 두 사람이 **Toggle ready**를 누르면 2인 튜토리얼로 이동합니다. 사슬 거리, 자세, 공동 당기기, 낚아채기 대응, 회전 구조를 순서대로 완료하면 전투가 시작됩니다. 개발용 빌드에서는 튜토리얼 건너뛰기 버튼을 사용할 수 있습니다.
 
+테스터용 클라이언트는 `Chainbound Raid > Build Tester Client`로 별도 빌드한 뒤 `tools/package_tester.ps1`로 압축합니다. 이 빌드에는 건너뛰기 버튼이 없습니다. 배포 절차와 조작은 [테스터 안내](docs/TESTER_GUIDE.md)를 참고하세요. 코끼리 보스 모델의 외부 배포 권한은 확인 전이므로 현재 압축 파일은 프로젝트 내부 시험용입니다.
+
 전투 조작은 WASD 이동, 마우스 시점, Shift 질주, Space 구르기, 왼쪽/오른쪽 클릭 약/강공격, Tab 부위 선택, E 동료 구조입니다. 현재 개발자 접속은 서버 IP와 UDP 7777 포트를 사용합니다. 외부 서버 배포·초대 코드·정식 튜토리얼은 아직 없습니다.
 
 플레이어는 자신이 파란색, 동료가 주황색으로 보입니다. 공격은 노란색, 강공격은 주황색, 회피는 청록색, 피격·다운은 붉은색으로 표시되며, 바닥 링도 같은 색으로 바뀝니다. 보스가 발구르기를 준비하면 몸과 바닥 예고 링이 붉게 변합니다. 이 동작은 현재 상태를 확인하기 위한 간단한 도형 기반 임시 애니메이션입니다.

@@ -423,7 +423,11 @@ namespace ChainboundRaid
             GUI.skin.textField.fontSize = 15;
             GUI.skin.textField.fixedHeight = 28;
             GUILayout.BeginArea(new Rect(12, 12, 500, 515), GUI.skin.box);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             GUILayout.Label("CHAINBOUND RAID | Developer Session");
+#else
+            GUILayout.Label("CHAINBOUND RAID | Test Session");
+#endif
             if (!manager.IsListening)
             {
                 GUILayout.Label("Server address:");
@@ -454,28 +458,39 @@ namespace ChainboundRaid
                 switch (session.TutorialStep.Value)
                 {
                     case 0:
-                        GUILayout.Label("Move apart until the chain turns yellow, then move together.");
+                        GUILayout.Label(session.TutorialProgress.Value == 0 ?
+                            "Move apart until the chain turns yellow (7 m)." :
+                            "Good. Move together until the chain relaxes.");
                         GUILayout.Label("Chain: " + (RaidChain.Instance != null ? RaidChain.Instance.DistanceBand.Value.ToString() : "waiting"));
                         break;
                     case 1:
                         GUILayout.Label("Each player: press Q to brace, then Q again to relax.");
-                        GUILayout.Label("Progress: " + System.Convert.ToString(session.TutorialProgress.Value, 2).PadLeft(4, '0'));
+                        int progress = session.TutorialProgress.Value;
+                        GUILayout.Label("Player 1: " + ((progress & 4) != 0 ? "done" : (progress & 1) != 0 ? "relax with Q" : "brace with Q"));
+                        GUILayout.Label("Player 2: " + ((progress & 8) != 0 ? "done" : (progress & 2) != 0 ? "relax with Q" : "brace with Q"));
                         break;
                     case 2:
-                        GUILayout.Label("Stand on opposite sides of the boss's front leg.");
+                        GUILayout.Label("Follow the blue markers to opposite sides of the front leg.");
                         GUILayout.Label("Both press Q to brace, then hold F together.");
                         if (RaidCooperation.Instance != null)
-                            GUILayout.Label("Pull: " + RaidCooperation.Instance.Gauge.Value.ToString("F0") +
-                                " | " + RaidCooperationRules.Primary(RaidCooperation.Instance.FailureReasons.Value));
+                        {
+                            var cooperation = RaidCooperation.Instance;
+                            GUILayout.Label("Pull: " + cooperation.Gauge.Value.ToString("F0") + " / 100");
+                            GUILayout.Label("Hint: " + TutorialPullHint(cooperation.FailureReasons.Value));
+                        }
                         break;
                     case 3:
                         GUILayout.Label("Keep the chain taut to trigger the practice snatch.");
                         GUILayout.Label("Chain snatch: approach before it catches the chain,");
                         GUILayout.Label("or brace and hold F together to counter it.");
+                        if (RaidChain.Instance != null)
+                            GUILayout.Label("Chain: " + RaidChain.Instance.PathLength.Value.ToString("F1") + " / 7.0 m");
                         break;
                     case 4:
-                        GUILayout.Label("Player 2: approach the boss to trigger a grab; hold R to resist.");
-                        GUILayout.Label("Player 1: stand at the green rescue point and hold E.");
+                        bool rescuer = manager.LocalClientId == session.FirstPlayerClientId.Value;
+                        GUILayout.Label(rescuer ?
+                            "Your role: follow the green marker and hold E to rescue." :
+                            "Your role: approach the boss; when grabbed, hold R to resist.");
                         if (RaidBoss.Instance != null)
                             GUILayout.Label("Rescue: " + RaidBoss.Instance.SpinRescueProgress.Value.ToString("F1") + " s");
                         break;
@@ -534,6 +549,53 @@ namespace ChainboundRaid
                 if (GUILayout.Button("Return to lobby")) session.ReturnToLobbyRpc();
             }
             GUILayout.EndArea();
+            if (session.CurrentState == RaidSessionState.Tutorial) DrawTutorialMarkers(session);
+        }
+
+        static string TutorialPullHint(PullFailure failures)
+        {
+            return RaidCooperationRules.Primary(failures) switch
+            {
+                PullFailure.NoAnchor => "Put the front leg between the chain and both players.",
+                PullFailure.NotBraced => "Both players press Q to brace.",
+                PullFailure.NotGrounded => "Stay on the ground.",
+                PullFailure.InvalidAngle => "Move to opposite sides of the boss.",
+                PullFailure.NoSharedHold => "Both players hold F at the same time.",
+                PullFailure.PartImmune => "Wait for the leg to recover.",
+                PullFailure.PlayerDisabled => "Wait until both players can act.",
+                _ => "Wrap the front leg, then brace and pull together."
+            };
+        }
+
+        void DrawTutorialMarkers(RaidSession session)
+        {
+            var boss = RaidBoss.Instance;
+            if (boss == null) return;
+            if (session.TutorialStep.Value == 2)
+            {
+                Vector3 leg = boss.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
+                bool first = manager.LocalClientId == session.FirstPlayerClientId.Value;
+                Vector3 offset = first ? new Vector3(-3.2f, 0f, -2.5f) : new Vector3(3.2f, 0f, 2.5f);
+                DrawWorldMarker(leg + offset, "YOUR POSITION", new Color(.3f, .8f, 1f));
+                DrawWorldMarker(leg, "FRONT LEG", new Color(1f, .8f, .25f));
+            }
+            else if (session.TutorialStep.Value == 4 &&
+                     manager.LocalClientId == session.FirstPlayerClientId.Value)
+                DrawWorldMarker(boss.RescuePoint, "RESCUE POINT", new Color(.35f, 1f, .45f));
+        }
+
+        static void DrawWorldMarker(Vector3 worldPosition, string label, Color color)
+        {
+            var camera = Camera.main;
+            if (camera == null) return;
+            Vector3 screen = camera.WorldToScreenPoint(worldPosition + Vector3.up * 1.5f);
+            if (screen.z <= 0f) return;
+            float x = Mathf.Clamp(screen.x, 80f, Screen.width - 80f);
+            float y = Mathf.Clamp(Screen.height - screen.y, 40f, Screen.height - 40f);
+            Color previous = GUI.color;
+            GUI.color = color;
+            GUI.Box(new Rect(x - 80f, y - 18f, 160f, 36f), label);
+            GUI.color = previous;
         }
     }
 }
