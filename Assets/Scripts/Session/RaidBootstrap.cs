@@ -96,6 +96,8 @@ namespace ChainboundRaid
 
         void Update()
         {
+            if (manager.IsServer && testRevive && RaidBoss.Instance != null)
+                RaidBoss.Instance.TestPassive = true;
             if (manager.IsServer && testTutorial && !tutorialTestStarted && RaidSession.Instance != null &&
                 RaidSession.Instance.CurrentState == RaidSessionState.Tutorial && RaidSession.Instance.Players.Count == 2)
             { tutorialTestStarted = true; StartCoroutine(RunTutorialSmoke()); }

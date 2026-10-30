@@ -2,6 +2,12 @@
 
 상태: 검토 초안 · 근거: 프로토타입 기획서 §2, §8–12
 
+## 현재 자동 회귀 범위
+
+`tools/run_regression.ps1`은 개발용 전용 서버 1개와 클라이언트 2개를 사례마다 새로 실행한다. 현재 튜토리얼 5단계와 전투 전환, 보스 기술 대응, 플레이어별 첫 번째·두 번째 다운 구조(3초·6초), 보스 처치 결과를 확인한다. 각 사례의 서버·양 클라이언트 로그와 `summary.json`은 `Builds/Regression/` 아래에 저장된다. 실행 전 Unity 메뉴 `Chainbound Raid > Build Client and Dedicated Server`로 개발용 빌드를 만든다.
+
+2026-10-30 자동 시험에서는 네 사례가 모두 통과했다. 이 시험은 실제 사람의 조작, 지연·손실 조건, 30분 장기 연결, 전조의 가독성, 튜토리얼 3~5분 목표를 대신하지 않는다. 아래의 계측 계약과 외부 사용성 시험은 후속 작업이다.
+
 ## 기록 계약 [기획 + 명세 제안]
 
 모든 핵심 이벤트는 `sessionId`, `eventId`, `eventSequence`, `serverTick`, `eventType`, `actorId`, `targetId`, `bossMoveId`, `chainState`, `pathLength`, `playerPositions`, `outcome`, `reasonCode`를 기록한다. 해당 이벤트에 필요한 경우 `telegraphStartTick`, `hitTick`, 양쪽 입력 틱, 피해량, 제압 게이지, RTT·손실·보정 거리도 추가한다. 세션 식별자는 임의 ID를 사용하고 개인 정보는 저장하지 않는다. 영상은 참여자 동의가 있는 시험에서만 촬영한다. [기획]

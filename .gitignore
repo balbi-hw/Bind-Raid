@@ -34,4 +34,5 @@ unity-0102-validate.log
 raid-*-smoke.log
 raid-*.log
 *.blend1
+*.blend1.meta
 unity-*.log

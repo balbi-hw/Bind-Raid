@@ -48,6 +48,7 @@ namespace ChainboundRaid
         float spinRescueHeld;
         public int SnatchAvoidCount { get; private set; }
         public int SpinRescueCount { get; private set; }
+        public bool TestPassive { get; set; }
         Vector3 initialPosition;
         Quaternion initialRotation;
 
@@ -109,7 +110,7 @@ namespace ChainboundRaid
             {
                 case BossAttackStage.Idle:
                     if (!tutorial) FaceTarget();
-                    if (!tutorial && Time.time >= nextAttackTime) StartAttack(SelectAttack());
+                    if (!tutorial && !TestPassive && Time.time >= nextAttackTime) StartAttack(SelectAttack());
                     break;
                 case BossAttackStage.Telegraph:
                     if (Time.time >= stageEndTime) BeginActive();
