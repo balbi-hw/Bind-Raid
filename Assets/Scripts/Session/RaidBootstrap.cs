@@ -42,6 +42,7 @@ namespace ChainboundRaid
 
         void Awake()
         {
+            if (GetComponent<RaidInputController>() == null) gameObject.AddComponent<RaidInputController>();
             manager = GetComponent<NetworkManager>();
             transport = GetComponent<UnityTransport>();
             transport.DisconnectTimeoutMS = 5000;
@@ -177,7 +178,7 @@ namespace ChainboundRaid
             first.SetTestCooperation(ChainStance.Flexible, false);
             second.SetTestCooperation(ChainStance.Flexible, false);
             yield return new WaitForSeconds(.3f);
-            Vector3 leg = boss.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
+            Vector3 leg = boss.transform.TransformPoint(boss.FrontLegAnchorLocal);
             TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
             TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
             yield return new WaitForSeconds(.3f);
@@ -237,7 +238,7 @@ namespace ChainboundRaid
             var second = RaidSession.Instance.Players[1];
             var chain = RaidChain.Instance;
             if (chain == null) { Debug.LogError("CHAIN_SMOKE: missing chain"); yield break; }
-            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
+            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(RaidBoss.Instance.FrontLegAnchorLocal);
             TeleportForTest(first, new Vector3(leg.x, 1f, leg.z - 3f));
             TeleportForTest(second, new Vector3(leg.x, 1f, leg.z + 3f));
             yield return new WaitForSeconds(.25f);
@@ -262,10 +263,7 @@ namespace ChainboundRaid
 
         static void TeleportForTest(RaidPlayer player, Vector3 position)
         {
-            var controller = player.GetComponent<CharacterController>();
-            controller.enabled = false;
-            player.transform.position = position;
-            controller.enabled = true;
+            player.TeleportOnServer(position);
         }
 
         IEnumerator RunCooperationSmoke()
@@ -276,7 +274,7 @@ namespace ChainboundRaid
             var cooperation = RaidCooperation.Instance;
             if (chain == null || cooperation == null)
             { Debug.LogError("COOP_SMOKE: missing component"); yield break; }
-            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
+            Vector3 leg = RaidBoss.Instance.transform.TransformPoint(RaidBoss.Instance.FrontLegAnchorLocal);
             TeleportForTest(first, new Vector3(leg.x - 3.2f, 1f, leg.z - 2.5f));
             TeleportForTest(second, new Vector3(leg.x + 3.2f, 1f, leg.z + 2.5f));
             yield return new WaitForSeconds(.3f);
@@ -308,9 +306,11 @@ namespace ChainboundRaid
             var second = RaidSession.Instance.Players[1];
             TeleportForTest(first, boss.transform.position + new Vector3(0f, -1f, -3f));
             TeleportForTest(second, boss.transform.position + new Vector3(6f, -1f, 0f));
+            Quaternion beforeFacing = boss.transform.rotation;
             boss.ForceAttackForTest(BossAttack.Stomp);
-            bool facing = Vector3.Dot(boss.transform.forward, boss.AttackDirection.Value) > .99f;
+            bool noInstantTurn = Quaternion.Angle(beforeFacing, boss.transform.rotation) < .1f;
             yield return new WaitForSeconds(boss.settings.stompTelegraph + .2f);
+            bool facing = noInstantTurn && Vector3.Dot(boss.transform.forward, boss.AttackDirection.Value) > .99f;
             bool stomp = first.Health.Value < first.maxHealth;
             bool expandedStomp = second.Health.Value < second.maxHealth;
             float beforeSweep = first.Health.Value;
@@ -363,6 +363,9 @@ namespace ChainboundRaid
             TeleportForTest(first, new Vector3(rescue.x, 1f, rescue.z));
             yield return new WaitForSeconds(boss.settings.spinTelegraph + .2f);
             bool spinGrabbed = second.Action.Value == RaidAction.Grabbed && first.Action.Value != RaidAction.Grabbed;
+            // Rescue location follows the boss's gradual telegraph rotation.
+            rescue = boss.RescuePoint;
+            TeleportForTest(first, new Vector3(rescue.x, 1f, rescue.z));
             first.SetTestReviveHold(true);
             yield return new WaitForSeconds(boss.settings.spinRescueSeconds + .3f);
             first.SetTestReviveHold(false);
@@ -419,35 +422,36 @@ namespace ChainboundRaid
         void OnGUI()
         {
             if (!manager.IsClient && manager.IsListening) return;
+            RaidLanguage.DrawSettings();
             GUI.skin.label.fontSize = 15;
             GUI.skin.button.fontSize = 15;
             GUI.skin.button.fixedHeight = 30;
             GUI.skin.textField.fontSize = 15;
             GUI.skin.textField.fixedHeight = 28;
-            GUILayout.BeginArea(new Rect(12, 12, 500, 515), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(12, 12, 500, 600), GUI.skin.box);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            GUILayout.Label("CHAINBOUND RAID | Developer Session");
+            GUILayout.Label(RaidLanguage.Get("ui.session.053"));
 #else
-            GUILayout.Label("CHAINBOUND RAID | Test Session");
+            GUILayout.Label(RaidLanguage.Get("ui.session.052"));
 #endif
             if (!manager.IsListening)
             {
-                GUILayout.Label("Server address:");
+                GUILayout.Label(RaidLanguage.Get("ui.session.051"));
                 address = GUILayout.TextField(address);
-                if (GUILayout.Button("Join server (port 7777)"))
+                if (GUILayout.Button(RaidLanguage.Get("ui.session.050")))
                 { transport.SetConnectionData(address, 7777); manager.StartClient(); connectionMessage = ""; }
-                GUILayout.Label(connectionMessage);
+                GUILayout.Label(RaidLanguage.Value(connectionMessage));
                 GUILayout.EndArea(); return;
             }
             var session = RaidSession.Instance;
             if (session == null || !session.IsSpawned)
-            { GUILayout.Label("Connecting..."); GUILayout.EndArea(); return; }
-            GUILayout.Label("Players: " + manager.ConnectedClientsIds.Count + "/2");
-            GUILayout.Label("State: " + session.CurrentState);
+            { GUILayout.Label(RaidLanguage.Get("ui.session.049")); GUILayout.EndArea(); return; }
+            GUILayout.Label(RaidLanguage.Format("ui.session.048", RaidLanguage.Value(manager.ConnectedClientsIds.Count)));
+            GUILayout.Label(RaidLanguage.Format("ui.session.047", RaidLanguage.Value(session.CurrentState)));
             if (session.CurrentState == RaidSessionState.Lobby)
             {
-                GUILayout.Label("Ready: " + session.FirstReady.Value + " / " + session.SecondReady.Value);
-                if (GUILayout.Button("Toggle ready"))
+                GUILayout.Label(RaidLanguage.Format("ui.session.046", RaidLanguage.Value(session.FirstReady.Value), RaidLanguage.Value(session.SecondReady.Value)));
+                if (GUILayout.Button(RaidLanguage.Get("ui.session.045")))
                 {
                     bool ready = manager.LocalClientId == session.FirstPlayerClientId.Value ?
                         session.FirstReady.Value : session.SecondReady.Value;
@@ -456,118 +460,91 @@ namespace ChainboundRaid
             }
             else if (session.CurrentState == RaidSessionState.Tutorial)
             {
-                GUILayout.Label("TUTORIAL " + (session.TutorialStep.Value + 1) + "/5 — both players share progress");
+                GUILayout.Label(RaidLanguage.Format("ui.session.044", (RaidLanguage.Value(session.TutorialStep.Value + 1))));
                 switch (session.TutorialStep.Value)
                 {
                     case 0:
-                        GUILayout.Label(session.TutorialProgress.Value == 0 ?
-                            "Move apart until the chain turns yellow (7 m)." :
-                            "Good. Move together until the chain relaxes.");
-                        GUILayout.Label("Chain: " + (RaidChain.Instance != null ? RaidChain.Instance.DistanceBand.Value.ToString() : "waiting"));
+                        GUILayout.Label(session.TutorialProgress.Value == 0  ? RaidLanguage.Get("ui.session.042") : RaidLanguage.Get("ui.session.043"));
+                        GUILayout.Label(RaidLanguage.Format("ui.session.041", (RaidChain.Instance != null  ? RaidLanguage.Value(RaidChain.Instance.DistanceBand.Value.ToString()) : RaidLanguage.Get("ui.session.040"))));
                         break;
                     case 1:
-                        GUILayout.Label("Each player: press Q to brace, then Q again to relax.");
+                        GUILayout.Label(RaidLanguage.Get("ui.session.039"));
                         int progress = session.TutorialProgress.Value;
-                        GUILayout.Label("Player 1: " + ((progress & 4) != 0 ? "done" : (progress & 1) != 0 ? "relax with Q" : "brace with Q"));
-                        GUILayout.Label("Player 2: " + ((progress & 8) != 0 ? "done" : (progress & 2) != 0 ? "relax with Q" : "brace with Q"));
+                        GUILayout.Label(RaidLanguage.Format("ui.session.038", ((progress & 4) != 0  ? RaidLanguage.Get("ui.session.034") : (progress & 1) != 0  ? RaidLanguage.Get("ui.session.035") : RaidLanguage.Get("ui.session.036"))));
+                        GUILayout.Label(RaidLanguage.Format("ui.session.037", ((progress & 8) != 0  ? RaidLanguage.Get("ui.session.034") : (progress & 2) != 0  ? RaidLanguage.Get("ui.session.035") : RaidLanguage.Get("ui.session.036"))));
                         break;
                     case 2:
-                        GUILayout.Label("Follow the blue markers to opposite sides of the front leg.");
-                        GUILayout.Label("Both press Q to brace, then hold F together.");
+                        GUILayout.Label(RaidLanguage.Get("ui.session.033"));
+                        GUILayout.Label(RaidLanguage.Get("ui.session.032"));
                         if (RaidCooperation.Instance != null)
                         {
                             var cooperation = RaidCooperation.Instance;
-                            GUILayout.Label("Pull: " + cooperation.Gauge.Value.ToString("F0") + " / 100");
-                            GUILayout.Label("Hint: " + TutorialPullHint(cooperation.FailureReasons.Value));
+                            GUILayout.Label(RaidLanguage.Format("ui.session.031", RaidLanguage.Value(cooperation.Gauge.Value.ToString("F0"))));
+                            GUILayout.Label(RaidLanguage.Format("ui.session.030", RaidLanguage.Value(TutorialPullHint(cooperation.FailureReasons.Value))));
                         }
                         break;
                     case 3:
-                        GUILayout.Label("Keep the chain taut to trigger the practice snatch.");
-                        GUILayout.Label("Chain snatch: approach before it catches the chain,");
-                        GUILayout.Label("or brace and hold F together to counter it.");
+                        GUILayout.Label(RaidLanguage.Get("ui.session.029"));
+                        GUILayout.Label(RaidLanguage.Get("ui.session.028"));
+                        GUILayout.Label(RaidLanguage.Get("ui.session.027"));
                         if (RaidChain.Instance != null)
-                            GUILayout.Label("Chain: " + RaidChain.Instance.PathLength.Value.ToString("F1") + " / 7.0 m");
+                            GUILayout.Label(RaidLanguage.Format("ui.session.026", RaidLanguage.Value(RaidChain.Instance.PathLength.Value.ToString("F1"))));
                         break;
                     case 4:
                         bool rescuer = manager.LocalClientId == session.FirstPlayerClientId.Value;
-                        GUILayout.Label(rescuer ?
-                            "Your role: follow the green marker and hold E to rescue." :
-                            "Your role: approach the boss; when grabbed, hold R to resist.");
+                        GUILayout.Label(rescuer  ? RaidLanguage.Get("ui.session.024") : RaidLanguage.Get("ui.session.025"));
                         if (RaidBoss.Instance != null)
-                            GUILayout.Label("Rescue: " + RaidBoss.Instance.SpinRescueProgress.Value.ToString("F1") + " s");
+                            GUILayout.Label(RaidLanguage.Format("ui.session.023", RaidLanguage.Value(RaidBoss.Instance.SpinRescueProgress.Value.ToString("F1"))));
                         break;
                 }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                if (GUILayout.Button("Developer: skip tutorial")) session.CompleteTutorialRpc();
+                if (GUILayout.Button(RaidLanguage.Get("ui.session.022"))) session.CompleteTutorialRpc();
 #endif
             }
             else if (session.CurrentState == RaidSessionState.Combat)
             {
-                GUILayout.Label("Time: " + session.CombatSeconds.Value.ToString("F0") + " / 1080 s");
+                GUILayout.Label(RaidLanguage.Format("ui.session.021", RaidLanguage.Value(session.CombatSeconds.Value.ToString("F0"))));
                 if (RaidBoss.Instance != null)
                 {
-                    GUILayout.Label("Boss HP: " + RaidBoss.Instance.Health.Value.ToString("F0"));
-                    GUILayout.Label("Trunk / leg durability: " + RaidBoss.Instance.TrunkDurability.Value.ToString("F0") +
-                        " / " + RaidBoss.Instance.FrontLegDurability.Value.ToString("F0"));
+                    GUILayout.Label(RaidLanguage.Format("ui.session.020", RaidLanguage.Value(RaidBoss.Instance.Health.Value.ToString("F0"))));
+                    GUILayout.Label(RaidLanguage.Format("ui.session.019", RaidLanguage.Value(RaidBoss.Instance.TrunkDurability.Value.ToString("F0")), RaidLanguage.Value(RaidBoss.Instance.FrontLegDurability.Value.ToString("F0"))));
                 }
                 var local = manager.LocalClient != null && manager.LocalClient.PlayerObject != null ?
                     manager.LocalClient.PlayerObject.GetComponent<RaidPlayer>() : null;
                 if (local != null)
                 {
-                    GUILayout.Label("HP " + local.Health.Value.ToString("F0") + " | Stamina " + local.Stamina.Value.ToString("F0"));
-                    GUILayout.Label("Action " + local.Action.Value + " | Target " +
-                        (local.LockEnabled.Value ? local.LockedPart.Value.ToString() : "None"));
-                    GUILayout.Label("Stance " + local.Stance.Value +
-                        (local.StanceChanging.Value ? " (switching)" : "") +
-                        " | Pull " + (local.PullHeld.Value ? "held" : "released"));
+                    GUILayout.Label(RaidLanguage.Format("ui.session.018", RaidLanguage.Value(local.Health.Value.ToString("F0")), RaidLanguage.Value(local.Stamina.Value.ToString("F0"))));
+                    GUILayout.Label(RaidLanguage.Format("ui.session.017", RaidLanguage.Value(local.Action.Value), (local.LockEnabled.Value  ? RaidLanguage.Value(local.LockedPart.Value.ToString()) : RaidLanguage.Get("ui.session.016"))));
+                    GUILayout.Label(RaidLanguage.Format("ui.session.015", RaidLanguage.Value(local.Stance.Value), (local.StanceChanging.Value  ? RaidLanguage.Get("ui.session.012") : ""), (local.PullHeld.Value  ? RaidLanguage.Get("ui.session.013") : RaidLanguage.Get("ui.session.014"))));
                     if (local.IsDown)
-                        GUILayout.Label("Revive " + local.ReviveProgress.Value.ToString("F1") + " / " +
-                            local.RequiredReviveSeconds.ToString("F0") + " s");
+                        GUILayout.Label(RaidLanguage.Format("ui.session.011", RaidLanguage.Value(local.ReviveProgress.Value.ToString("F1")), RaidLanguage.Value(local.RequiredReviveSeconds.ToString("F0"))));
                 }
                 foreach (var player in FindObjectsByType<RaidPlayer>(FindObjectsSortMode.None))
                 {
                     if (local == null || player == local || !player.IsSpawned) continue;
-                    GUILayout.Label("Partner HP " + player.Health.Value.ToString("F0") +
-                        " | Distance " + Vector3.Distance(local.transform.position, player.transform.position).ToString("F1") + " m");
+                    GUILayout.Label(RaidLanguage.Format("ui.session.010", RaidLanguage.Value(player.Health.Value.ToString("F0")), RaidLanguage.Value(Vector3.Distance(local.transform.position, player.transform.position).ToString("F1"))));
                 }
                 if (RaidChain.Instance != null && RaidChain.Instance.IsSpawned)
-                    GUILayout.Label("Chain " + RaidChain.Instance.PathLength.Value.ToString("F1") + " m | " +
-                        RaidChain.Instance.DistanceBand.Value + " | " + RaidChain.Instance.DisplayState.Value +
-                        " | Anchor " + RaidChain.Instance.ActiveAnchor.Value);
+                    GUILayout.Label(RaidLanguage.Format("ui.session.009", RaidLanguage.Value(RaidChain.Instance.PathLength.Value.ToString("F1")), RaidLanguage.Value(RaidChain.Instance.DistanceBand.Value), RaidLanguage.Value(RaidChain.Instance.DisplayState.Value), RaidLanguage.Value(RaidChain.Instance.ActiveAnchor.Value)));
                 if (RaidCooperation.Instance != null && RaidCooperation.Instance.IsSpawned)
-                    GUILayout.Label("Suppression " + RaidCooperation.Instance.Gauge.Value.ToString("F0") +
-                        " / 100 | " + RaidCooperationRules.Primary(
-                            RaidCooperation.Instance.FailureReasons.Value));
-                GUILayout.Label("WASD move | Mouse look | Shift sprint | Space dodge");
-                GUILayout.Label("Q stance | F pull | E revive | Tab target part");
-                GUILayout.Label("Left/Right click attacks");
+                    GUILayout.Label(RaidLanguage.Format("ui.session.008", RaidLanguage.Value(RaidCooperation.Instance.Gauge.Value.ToString("F0")), RaidLanguage.Value(RaidCooperationRules.Primary(
+                            RaidCooperation.Instance.FailureReasons.Value))));
+                GUILayout.Label(RaidLanguage.Get("ui.session.007"));
+                GUILayout.Label(RaidLanguage.Get("ui.session.006"));
+                GUILayout.Label(RaidLanguage.Get("ui.session.005"));
             }
             else if (session.CurrentState == RaidSessionState.Result)
             {
-                GUILayout.Label("Result: " + session.CurrentResult);
-                GUILayout.Label("Time " + session.CombatSeconds.Value.ToString("F0") + " s | Revives " + session.RevivesUsed.Value);
-                GUILayout.Label("Staggers " + session.StaggerCount.Value + " | Chain " +
-                    session.ChainSuccesses.Value + "/" + session.ChainAttempts.Value);
-                if (GUILayout.Button("Return to lobby")) session.ReturnToLobbyRpc();
+                GUILayout.Label(RaidLanguage.Format("ui.session.004", RaidLanguage.Value(session.CurrentResult)));
+                GUILayout.Label(RaidLanguage.Format("ui.session.003", RaidLanguage.Value(session.CombatSeconds.Value.ToString("F0")), RaidLanguage.Value(session.RevivesUsed.Value)));
+                GUILayout.Label(RaidLanguage.Format("ui.session.002", RaidLanguage.Value(session.StaggerCount.Value), RaidLanguage.Value(session.ChainSuccesses.Value), RaidLanguage.Value(session.ChainAttempts.Value)));
+                if (GUILayout.Button(RaidLanguage.Get("ui.session.001"))) session.ReturnToLobbyRpc();
             }
             GUILayout.EndArea();
             if (session.CurrentState == RaidSessionState.Tutorial) DrawTutorialMarkers(session);
         }
 
-        static string TutorialPullHint(PullFailure failures)
-        {
-            return RaidCooperationRules.Primary(failures) switch
-            {
-                PullFailure.NoAnchor => "Put the front leg between the chain and both players.",
-                PullFailure.NotBraced => "Both players press Q to brace.",
-                PullFailure.NotGrounded => "Stay on the ground.",
-                PullFailure.InvalidAngle => "Move to opposite sides of the boss.",
-                PullFailure.NoSharedHold => "Both players hold F at the same time.",
-                PullFailure.PartImmune => "Wait for the leg to recover.",
-                PullFailure.PlayerDisabled => "Wait until both players can act.",
-                _ => "Wrap the front leg, then brace and pull together."
-            };
-        }
+        static string TutorialPullHint(PullFailure failures) => RaidLanguage.Get(RaidCooperationRules.InstructionId(failures));
 
         void DrawTutorialMarkers(RaidSession session)
         {
@@ -575,15 +552,15 @@ namespace ChainboundRaid
             if (boss == null) return;
             if (session.TutorialStep.Value == 2)
             {
-                Vector3 leg = boss.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
+                Vector3 leg = boss.transform.TransformPoint(boss.FrontLegAnchorLocal);
                 bool first = manager.LocalClientId == session.FirstPlayerClientId.Value;
                 Vector3 offset = first ? new Vector3(-3.2f, 0f, -2.5f) : new Vector3(3.2f, 0f, 2.5f);
-                DrawWorldMarker(leg + offset, "YOUR POSITION", new Color(.3f, .8f, 1f));
-                DrawWorldMarker(leg, "FRONT LEG", new Color(1f, .8f, .25f));
+                DrawWorldMarker(leg + offset, RaidLanguage.Get("ui.session.062"), new Color(.3f, .8f, 1f));
+                DrawWorldMarker(leg, RaidLanguage.Get("ui.session.063"), new Color(1f, .8f, .25f));
             }
             else if (session.TutorialStep.Value == 4 &&
                      manager.LocalClientId == session.FirstPlayerClientId.Value)
-                DrawWorldMarker(boss.RescuePoint, "RESCUE POINT", new Color(.35f, 1f, .45f));
+                DrawWorldMarker(boss.RescuePoint, RaidLanguage.Get("ui.session.064"), new Color(.35f, 1f, .45f));
         }
 
         static void DrawWorldMarker(Vector3 worldPosition, string label, Color color)
@@ -596,7 +573,7 @@ namespace ChainboundRaid
             float y = Mathf.Clamp(Screen.height - screen.y, 40f, Screen.height - 40f);
             Color previous = GUI.color;
             GUI.color = color;
-            GUI.Box(new Rect(x - 80f, y - 18f, 160f, 36f), label);
+            GUI.Box(new Rect(x - 80f, y - 18f, 160f, 36f),RaidLanguage.Value(label));
             GUI.color = previous;
         }
     }

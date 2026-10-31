@@ -5,6 +5,7 @@ using System.Collections.Generic;
 namespace ChainboundRaid
 {
     // Server owns every gameplay value. The line is a client-only view of that path.
+    [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(NetworkObject), typeof(LineRenderer))]
     public sealed class RaidChain : NetworkBehaviour
     {
@@ -20,6 +21,10 @@ namespace ChainboundRaid
         public float sustainedOverstretchSeconds = 1.5f;
         public float wrapRadius = .65f;
         public float wrapReleaseRadius = 1.25f;
+        public float forceRampPerSecond = 6f;
+        public float visualFollowSharpness = 20f;
+        public float slackSag = .2f;
+        public readonly NetworkVariable<float> Tension = new NetworkVariable<float>();
 
         [Header("Visual chain links")]
         public GameObject chainLinkPrefab;
@@ -49,6 +54,7 @@ namespace ChainboundRaid
         public override void OnNetworkSpawn()
         {
             Debug.Log("RAID_CHAIN: spawned server=" + IsServer);
+            if (IsClient && GetComponent<RaidChainFeedback>() == null) gameObject.AddComponent<RaidChainFeedback>();
         }
         public override void OnDestroy()
         {
@@ -56,7 +62,7 @@ namespace ChainboundRaid
             base.OnDestroy();
         }
 
-        void Update()
+        void FixedUpdate()
         {
             if (IsServer) TickServer();
         }
@@ -71,7 +77,7 @@ namespace ChainboundRaid
             { line.enabled = false; HideVisualLinks(); return; }
             if (!TryPlayers(out var first, out var second))
             { line.enabled = false; HideVisualLinks(); return; }
-            Vector3 a = Waist(first), b = Waist(second);
+            Vector3 a = Waist(first) + first.PresentationOffset, b = Waist(second) + second.PresentationOffset;
             Vector3? anchor = AnchorPoint(ActiveAnchor.Value);
             Color color = DisplayState.Value switch
             {
@@ -132,8 +138,12 @@ namespace ChainboundRaid
             {
                 EnsureVisualLink(index);
                 var holder = visualLinks[index];
+                bool wasVisible = holder.activeSelf;
                 holder.SetActive(true);
-                holder.transform.position = Vector3.Lerp(start, end, (i + .5f) / count);
+                float t = (i + .5f) / count;
+                Vector3 desired = Vector3.Lerp(start, end, t) - Vector3.up * slackSag * (1f - Tension.Value) * Mathf.Sin(t * Mathf.PI);
+                holder.transform.position = wasVisible ? Vector3.Lerp(holder.transform.position, desired,
+                    1f - Mathf.Exp(-visualFollowSharpness * Time.deltaTime)) : desired;
                 holder.transform.rotation = facing * Quaternion.Euler(0f, 0f, index % 2 == 0 ? 0f : 90f);
                 foreach (var renderer in visualRenderers[index]) renderer.SetPropertyBlock(linkColorBlock);
                 index++;
@@ -150,6 +160,7 @@ namespace ChainboundRaid
                 var model = Instantiate(chainLinkPrefab, holder.transform, false);
                 var renderers = model.GetComponentsInChildren<Renderer>(true);
                 foreach (var renderer in renderers) renderer.sharedMaterial = chainMaterial;
+                holder.SetActive(false);
                 visualLinks.Add(holder);
                 visualRenderers.Add(renderers);
             }
@@ -162,13 +173,13 @@ namespace ChainboundRaid
 
         public Vector3 ConstrainMove(RaidPlayer moving, Vector3 displacement)
         {
-            if (!IsServer || !TryPlayers(out var first, out var second) ||
+            if (!TryPlayers(out var first, out var second) ||
                 displacement.sqrMagnitude < .000001f) return displacement;
             Vector3 a = Waist(first), b = Waist(second);
             Vector3? anchor = AnchorPoint(ActiveAnchor.Value);
             Vector3 result = RaidChainRules.ConstrainDisplacement(a, b, anchor, moving == first,
                 displacement, nominalLength, hardLength, bufferSlowdown, out bool attemptedHard);
-            if (attemptedHard) attemptUntil = Time.time + .2f;
+            if (IsServer && attemptedHard) attemptUntil = Time.time + .2f;
             return result;
         }
 
@@ -186,9 +197,8 @@ namespace ChainboundRaid
             if (length > hardLength || Time.time < attemptUntil)
             {
                 if (overSince < 0f) overSince = Time.time;
-                PullTowardEachOther(first, second, Time.deltaTime);
-                first.DrainChainStamina(staminaCostPerSecond * Time.deltaTime);
-                second.DrainChainStamina(staminaCostPerSecond * Time.deltaTime);
+                first.DrainChainStamina(staminaCostPerSecond * Time.fixedDeltaTime);
+                second.DrainChainStamina(staminaCostPerSecond * Time.fixedDeltaTime);
                 if (Time.time - overSince >= sustainedOverstretchSeconds)
                 {
                     first.ChainKnockdown(); second.ChainKnockdown();
@@ -203,6 +213,8 @@ namespace ChainboundRaid
             if (Time.time < attemptUntil && band != RaidChainBand.Overstretched)
                 band = RaidChainBand.Overstretched;
             DistanceBand.Value = band;
+            float tension = band == RaidChainBand.Overstretched ? 1f : Mathf.InverseLerp(nominalLength, hardLength, length);
+            Tension.Value = Mathf.MoveTowards(Tension.Value, tension, forceRampPerSecond * Time.fixedDeltaTime);
             bool down = first.Action.Value == RaidAction.Knockdown || first.IsDown ||
                 second.Action.Value == RaidAction.Knockdown || second.IsDown;
             bool grabbed = first.Action.Value == RaidAction.Grabbed || second.Action.Value == RaidAction.Grabbed;
@@ -267,6 +279,7 @@ namespace ChainboundRaid
             ActiveAnchor.Value = RaidChainAnchor.None;
             SuspendedAnchor.Value = RaidChainAnchor.None;
             PathLength.Value = 0f;
+            Tension.Value = 0f;
             DistanceBand.Value = RaidChainBand.Slack;
             DisplayState.Value = RaidChainState.Slack;
             overSince = -1f;
@@ -275,17 +288,15 @@ namespace ChainboundRaid
             if (line != null) line.enabled = false;
         }
 
-        void PullTowardEachOther(RaidPlayer first, RaidPlayer second, float dt)
+        // Pure displacement request. The player motor is the only controller writer.
+        public Vector3 PullDisplacement(RaidPlayer player, float dt)
         {
-            Vector3 a = first.transform.position, b = second.transform.position;
-            Vector3? anchor = AnchorPoint(ActiveAnchor.Value);
-            Vector3 firstGoal = anchor ?? b;
-            Vector3 secondGoal = anchor ?? a;
-            float step = pullSpeedLimit * dt;
-            if (!first.IsDown && first.Action.Value != RaidAction.Grabbed)
-                first.GetComponent<CharacterController>().Move(Toward(a, firstGoal, step));
-            if (!second.IsDown && second.Action.Value != RaidAction.Grabbed)
-                second.GetComponent<CharacterController>().Move(Toward(b, secondGoal, step));
+            if (DistanceBand.Value != RaidChainBand.Overstretched || player.IsDown ||
+                player.Action.Value == RaidAction.Grabbed || !TryPlayers(out var first, out var second)) return Vector3.zero;
+            var partner = player == first ? second : first;
+            if (player != first && player != second) return Vector3.zero;
+            Vector3 goal = AnchorPoint(ActiveAnchor.Value) ?? partner.transform.position;
+            return Toward(player.transform.position, goal, pullSpeedLimit * Tension.Value * dt);
         }
 
         static Vector3 Toward(Vector3 from, Vector3 to, float maxStep)
@@ -309,7 +320,7 @@ namespace ChainboundRaid
                 if (clientFirst == null || clientSecond == null || !clientFirst.IsSpawned || !clientSecond.IsSpawned)
                 {
                     clientFirst = clientSecond = null;
-                    foreach (var player in FindObjectsByType<RaidPlayer>(FindObjectsSortMode.None))
+                    foreach (var player in RaidPlayerRegistry.Active)
                     {
                         if (!player.IsSpawned) continue;
                         if (clientFirst == null) clientFirst = player;
@@ -326,14 +337,11 @@ namespace ChainboundRaid
         {
             var boss = RaidBoss.Instance;
             if (boss == null || !boss.IsSpawned || boss.Health.Value <= 0f) return null;
-            if (anchor == RaidChainAnchor.FrontLeg && boss.FrontLegDurability.Value > 0f)
-                return boss.transform.TransformPoint(RaidBoss.FrontLegAnchorLocal);
-            if (anchor == RaidChainAnchor.Trunk && boss.TrunkDurability.Value > 0f)
-                return boss.transform.TransformPoint(RaidBoss.TrunkAnchorLocal);
+            if (boss.TryGetChainAnchor(anchor, out var point)) return point;
             return null;
         }
 
-        static Vector3 Waist(RaidPlayer player) => player.transform.position + Vector3.up * .15f;
+        static Vector3 Waist(RaidPlayer player) => player.ChainAttachmentPosition;
         static Vector2 XZ(Vector3 point) => new Vector2(point.x, point.z);
     }
 }

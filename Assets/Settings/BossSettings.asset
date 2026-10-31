@@ -12,6 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dab89d1cc3496434aac31c384ce5c9da, type: 3}
   m_Name: BossSettings
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidBossSettings
+  hitboxLayout: {fileID: 11400000, guid: edec20110bd548f494e1d0b4d5ff32d6, type: 2}
+  anchors: {fileID: 11400000, guid: 43e2a513c2ae4bfaaa2fa8df8c4235b4, type: 2}
+  moveSet: {fileID: 11400000, guid: 0d56ce9fb6de4c50ad8ad2df5619453c, type: 2}
+  arena: {fileID: 11400000, guid: dc03f1336e0f41b38b0635f34dc4e433, type: 2}
   stompTelegraph: 1.2
   stompRadius: 6.5
   stompPower: 30

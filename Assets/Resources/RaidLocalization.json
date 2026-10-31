@@ -1,0 +1,949 @@
+{
+  "entries": [
+    {
+      "id": "ui.session.001",
+      "english": "Return to lobby",
+      "korean": "로비로 돌아가기"
+    },
+    {
+      "id": "ui.session.002",
+      "english": "Staggers {0} | Chain {1}/{2}",
+      "korean": "제압 횟수 {0} | 사슬 {1}/{2}"
+    },
+    {
+      "id": "ui.session.003",
+      "english": "Time {0} s | Revives {1}",
+      "korean": "시간 {0} s | 구조 횟수 {1}"
+    },
+    {
+      "id": "ui.session.004",
+      "english": "Result: {0}",
+      "korean": "결과: {0}"
+    },
+    {
+      "id": "ui.session.005",
+      "english": "Left/Right click attacks",
+      "korean": "왼쪽/오른쪽 클릭 공격"
+    },
+    {
+      "id": "ui.session.006",
+      "english": "Q stance | F pull | E revive | Tab target part",
+      "korean": "Q 자세 | F 당기기 | E 구조 | Tab 부위 선택"
+    },
+    {
+      "id": "ui.session.007",
+      "english": "WASD move | Mouse look | Shift sprint | Space dodge",
+      "korean": "WASD 이동 | 마우스 시점 | Shift 질주 | Space 회피"
+    },
+    {
+      "id": "ui.session.008",
+      "english": "Suppression {0} / 100 | {1}",
+      "korean": "제압 {0} / 100 | {1}"
+    },
+    {
+      "id": "ui.session.009",
+      "english": "Chain {0} m | {1} | {2} | Anchor {3}",
+      "korean": "사슬 {0} m | {1} | {2} | 감김점 {3}"
+    },
+    {
+      "id": "ui.session.010",
+      "english": "Partner HP {0} | Distance {1} m",
+      "korean": "동료 체력 {0} | 거리 {1} m"
+    },
+    {
+      "id": "ui.session.011",
+      "english": "Revive {0} / {1} s",
+      "korean": "구조 {0} / {1} s"
+    },
+    {
+      "id": "ui.session.012",
+      "english": " (switching)",
+      "korean": " (전환 중)"
+    },
+    {
+      "id": "ui.session.013",
+      "english": "held",
+      "korean": "유지"
+    },
+    {
+      "id": "ui.session.014",
+      "english": "released",
+      "korean": "해제"
+    },
+    {
+      "id": "ui.session.015",
+      "english": "Stance {0}{1} | Pull {2}",
+      "korean": "자세 {0}{1} | 당기기 {2}"
+    },
+    {
+      "id": "ui.session.016",
+      "english": "None",
+      "korean": "없음"
+    },
+    {
+      "id": "ui.session.017",
+      "english": "Action {0} | Target {1}",
+      "korean": "행동 {0} | 대상 {1}"
+    },
+    {
+      "id": "ui.session.018",
+      "english": "HP {0} | Stamina {1}",
+      "korean": "체력 {0} | 스태미나 {1}"
+    },
+    {
+      "id": "ui.session.019",
+      "english": "Trunk / leg durability: {0} / {1}",
+      "korean": "코 / 앞다리 내구도: {0} / {1}"
+    },
+    {
+      "id": "ui.session.020",
+      "english": "Boss HP: {0}",
+      "korean": "보스 체력: {0}"
+    },
+    {
+      "id": "ui.session.021",
+      "english": "Time: {0} / 1080 s",
+      "korean": "시간: {0} / 1080 s"
+    },
+    {
+      "id": "ui.session.022",
+      "english": "Developer: skip tutorial",
+      "korean": "개발용: 튜토리얼 건너뛰기"
+    },
+    {
+      "id": "ui.session.023",
+      "english": "Rescue: {0} s",
+      "korean": "구조: {0} s"
+    },
+    {
+      "id": "ui.session.024",
+      "english": "Your role: follow the green marker and hold E to rescue.",
+      "korean": "초록 표식으로 이동해 E를 유지하여 동료를 구조하세요."
+    },
+    {
+      "id": "ui.session.025",
+      "english": "Your role: approach the boss; when grabbed, hold R to resist.",
+      "korean": "보스에게 접근하고, 잡히면 R을 유지해 저항하세요."
+    },
+    {
+      "id": "ui.session.026",
+      "english": "Chain: {0} / 7.0 m",
+      "korean": "사슬: {0} / 7.0 m"
+    },
+    {
+      "id": "ui.session.027",
+      "english": "or brace and hold F together to counter it.",
+      "korean": "고정 자세에서 F를 함께 유지해 대응하세요."
+    },
+    {
+      "id": "ui.session.028",
+      "english": "Chain snatch: approach before it catches the chain,",
+      "korean": "낚아채기: 사슬이 잡히기 전에 가까이 오거나,"
+    },
+    {
+      "id": "ui.session.029",
+      "english": "Keep the chain taut to trigger the practice snatch.",
+      "korean": "사슬을 팽팽하게 만들어 낚아채기 연습을 시작하세요."
+    },
+    {
+      "id": "ui.session.030",
+      "english": "Hint: {0}",
+      "korean": "안내: {0}"
+    },
+    {
+      "id": "ui.session.031",
+      "english": "Pull: {0} / 100",
+      "korean": "당기기: {0} / 100"
+    },
+    {
+      "id": "ui.session.032",
+      "english": "Both press Q to brace, then hold F together.",
+      "korean": "둘 다 Q로 고정한 뒤 F를 함께 누르고 계세요."
+    },
+    {
+      "id": "ui.session.033",
+      "english": "Follow the blue markers to opposite sides of the front leg.",
+      "korean": "파란 표식을 따라 앞다리 양쪽으로 이동하세요."
+    },
+    {
+      "id": "ui.session.034",
+      "english": "done",
+      "korean": "완료"
+    },
+    {
+      "id": "ui.session.035",
+      "english": "relax with Q",
+      "korean": "Q로 유연 자세"
+    },
+    {
+      "id": "ui.session.036",
+      "english": "brace with Q",
+      "korean": "Q로 고정 자세"
+    },
+    {
+      "id": "ui.session.037",
+      "english": "Player 2: {0}",
+      "korean": "플레이어 2: {0}"
+    },
+    {
+      "id": "ui.session.038",
+      "english": "Player 1: {0}",
+      "korean": "플레이어 1: {0}"
+    },
+    {
+      "id": "ui.session.039",
+      "english": "Each player: press Q to brace, then Q again to relax.",
+      "korean": "각자 Q로 고정 자세, 다시 Q로 유연 자세를 취하세요."
+    },
+    {
+      "id": "ui.session.040",
+      "english": "waiting",
+      "korean": "대기 중"
+    },
+    {
+      "id": "ui.session.041",
+      "english": "Chain: {0}",
+      "korean": "사슬: {0}"
+    },
+    {
+      "id": "ui.session.042",
+      "english": "Move apart until the chain turns yellow (7 m).",
+      "korean": "사슬이 노란색이 될 때까지 서로 멀어지세요 (7m)."
+    },
+    {
+      "id": "ui.session.043",
+      "english": "Good. Move together until the chain relaxes.",
+      "korean": "좋아요. 사슬이 느슨해질 때까지 가까이 오세요."
+    },
+    {
+      "id": "ui.session.044",
+      "english": "TUTORIAL {0}/5 — both players share progress",
+      "korean": "튜토리얼 {0}/5 — 두 플레이어가 함께 진행합니다"
+    },
+    {
+      "id": "ui.session.045",
+      "english": "Toggle ready",
+      "korean": "준비 전환"
+    },
+    {
+      "id": "ui.session.046",
+      "english": "Ready: {0} / {1}",
+      "korean": "준비: {0} / {1}"
+    },
+    {
+      "id": "ui.session.047",
+      "english": "State: {0}",
+      "korean": "상태: {0}"
+    },
+    {
+      "id": "ui.session.048",
+      "english": "Players: {0}/2",
+      "korean": "인원: {0}/2"
+    },
+    {
+      "id": "ui.session.049",
+      "english": "Connecting...",
+      "korean": "연결 중..."
+    },
+    {
+      "id": "ui.session.050",
+      "english": "Join server (port 7777)",
+      "korean": "서버 접속 (포트 7777)"
+    },
+    {
+      "id": "ui.session.051",
+      "english": "Server address:",
+      "korean": "서버 주소:"
+    },
+    {
+      "id": "ui.session.052",
+      "english": "CHAINBOUND RAID | Test Session",
+      "korean": "CHAINBOUND RAID | 테스트 세션"
+    },
+    {
+      "id": "ui.session.053",
+      "english": "CHAINBOUND RAID | Developer Session",
+      "korean": "CHAINBOUND RAID | 개발 세션"
+    },
+    {
+      "id": "ui.session.054",
+      "english": "Put the front leg between the chain and both players.",
+      "korean": "두 사람 사이 사슬이 앞다리를 지나도록 이동하세요."
+    },
+    {
+      "id": "ui.session.055",
+      "english": "Both players press Q to brace.",
+      "korean": "두 사람 모두 Q로 고정 자세를 취하세요."
+    },
+    {
+      "id": "ui.session.056",
+      "english": "Stay on the ground.",
+      "korean": "지면에 서세요."
+    },
+    {
+      "id": "ui.session.057",
+      "english": "Move to opposite sides of the boss.",
+      "korean": "보스 양측으로 이동하세요."
+    },
+    {
+      "id": "ui.session.058",
+      "english": "Both players hold F at the same time.",
+      "korean": "두 사람이 동시에 F를 누르고 계세요."
+    },
+    {
+      "id": "ui.session.059",
+      "english": "Wait for the leg to recover.",
+      "korean": "앞다리의 면역이 끝날 때까지 기다리세요."
+    },
+    {
+      "id": "ui.session.060",
+      "english": "Wait until both players can act.",
+      "korean": "두 사람 모두 행동할 수 있을 때까지 기다리세요."
+    },
+    {
+      "id": "ui.session.061",
+      "english": "Wrap the front leg, then brace and pull together.",
+      "korean": "앞다리에 사슬을 감고 고정 자세에서 함께 당기세요."
+    },
+    {
+      "id": "ui.session.062",
+      "english": "YOUR POSITION",
+      "korean": "내 위치"
+    },
+    {
+      "id": "ui.session.063",
+      "english": "FRONT LEG",
+      "korean": "앞다리"
+    },
+    {
+      "id": "ui.session.064",
+      "english": "RESCUE POINT",
+      "korean": "구조 위치"
+    },
+    {
+      "id": "ui.hud.001",
+      "english": "Screen shake: ON",
+      "korean": "화면 흔들림: 켜짐"
+    },
+    {
+      "id": "ui.hud.002",
+      "english": "Screen shake: OFF",
+      "korean": "화면 흔들림: 꺼짐"
+    },
+    {
+      "id": "ui.hud.003",
+      "english": "A+",
+      "korean": "A+"
+    },
+    {
+      "id": "ui.hud.004",
+      "english": "A-",
+      "korean": "A-"
+    },
+    {
+      "id": "ui.hud.005",
+      "english": "PING  1 Approach   2 Pull   3 Release   4 Rescue",
+      "korean": "핑  1 접근   2 당겨   3 해제   4 구조"
+    },
+    {
+      "id": "ui.hud.006",
+      "english": "REVIVE {0}/{1}s",
+      "korean": "구조 {0}/{1}s"
+    },
+    {
+      "id": "ui.hud.007",
+      "english": "PING {0} from P{1} @{2}",
+      "korean": "핑 {0} · 플레이어 {1} · 시각 {2}"
+    },
+    {
+      "id": "ui.hud.008",
+      "english": "! {0}  {1}s",
+      "korean": "! {0}  {1}s"
+    },
+    {
+      "id": "ui.hud.009",
+      "english": "PULL: {0}",
+      "korean": "당기기: {0}"
+    },
+    {
+      "id": "ui.hud.010",
+      "english": "PULL",
+      "korean": "당기기"
+    },
+    {
+      "id": "ui.hud.011",
+      "english": "CHAIN {0}m  {1}  {2}",
+      "korean": "사슬 {0}m  {1}  {2}"
+    },
+    {
+      "id": "ui.hud.012",
+      "english": "LEG",
+      "korean": "앞다리"
+    },
+    {
+      "id": "ui.hud.013",
+      "english": "TRUNK",
+      "korean": "코"
+    },
+    {
+      "id": "ui.hud.014",
+      "english": "HP",
+      "korean": "체력"
+    },
+    {
+      "id": "ui.hud.015",
+      "english": "  STAGGERED",
+      "korean": "  경직"
+    },
+    {
+      "id": "ui.hud.016",
+      "english": "BOSS PHASE {0}{1}",
+      "korean": "보스 페이즈 {0}{1}"
+    },
+    {
+      "id": "ui.hud.017",
+      "english": "ST",
+      "korean": "기력"
+    },
+    {
+      "id": "ui.hud.018",
+      "english": "PARTNER  {0}  {1}",
+      "korean": "동료  {0}  {1}"
+    },
+    {
+      "id": "ui.hud.019",
+      "english": "YOU  {0}  {1}",
+      "korean": "나  {0}  {1}"
+    },
+    {
+      "id": "ui.hud.020",
+      "english": "RAID STATUS",
+      "korean": "레이드 상태"
+    },
+    {
+      "id": "ui.hud.021",
+      "english": "! Chain pull - move toward boss",
+      "korean": "! 사슬 당김 — 보스에게 접근하세요"
+    },
+    {
+      "id": "ui.hud.022",
+      "english": "! Brace and pull together",
+      "korean": "! 고정 자세로 함께 당기세요"
+    },
+    {
+      "id": "ui.hud.023",
+      "english": "! Hold R to slow spin",
+      "korean": "! R을 유지해 회전을 늦추세요"
+    },
+    {
+      "id": "ui.hud.024",
+      "english": "! Reach rescue marker and hold E  ",
+      "korean": "! 구조 표식에서 E 유지  "
+    },
+    {
+      "id": "ui.hud.025",
+      "english": "s",
+      "korean": "s"
+    },
+    {
+      "id": "ui.hud.026",
+      "english": "m",
+      "korean": "m"
+    },
+    {
+      "id": "ui.hud.027",
+      "english": "v",
+      "korean": "v"
+    },
+    {
+      "id": "value.001",
+      "english": "Connection lost. Return to the lobby.",
+      "korean": "연결이 끊겼습니다. 로비로 돌아가세요."
+    },
+    {
+      "id": "value.002",
+      "english": " — both players share progress",
+      "korean": " — 두 플레이어가 함께 진행합니다"
+    },
+    {
+      "id": "value.003",
+      "english": "Trunk / leg durability:",
+      "korean": "코 / 앞다리 내구도:"
+    },
+    {
+      "id": "value.004",
+      "english": "BothPlayersDown",
+      "korean": "두 명 전투 불능"
+    },
+    {
+      "id": "value.005",
+      "english": "ConnectionLost",
+      "korean": "연결 끊김"
+    },
+    {
+      "id": "value.006",
+      "english": "PlayerDisabled",
+      "korean": "행동 불가"
+    },
+    {
+      "id": "value.007",
+      "english": "Incapacitated",
+      "korean": "전투 불능"
+    },
+    {
+      "id": "value.008",
+      "english": "Overstretched",
+      "korean": "과긴장"
+    },
+    {
+      "id": "value.009",
+      "english": "BossDefeated",
+      "korean": "보스 처치"
+    },
+    {
+      "id": "value.010",
+      "english": "StrongAttack",
+      "korean": "강공격"
+    },
+    {
+      "id": "value.011",
+      "english": "InvalidAngle",
+      "korean": "각도 조정 필요"
+    },
+    {
+      "id": "value.012",
+      "english": "NoSharedHold",
+      "korean": "동시에 당기기 필요"
+    },
+    {
+      "id": "value.013",
+      "english": "Disconnected",
+      "korean": "연결 종료"
+    },
+    {
+      "id": "value.014",
+      "english": "HitReaction",
+      "korean": "피격"
+    },
+    {
+      "id": "value.015",
+      "english": "ChainSnatch",
+      "korean": "사슬 낚아채기"
+    },
+    {
+      "id": "value.016",
+      "english": "NotGrounded",
+      "korean": "접지 필요"
+    },
+    {
+      "id": "value.017",
+      "english": "Suppression",
+      "korean": "제압"
+    },
+    {
+      "id": "value.018",
+      "english": "BOSS PHASE",
+      "korean": "보스 페이즈"
+    },
+    {
+      "id": "value.019",
+      "english": "TrunkSweep",
+      "korean": "코 휘두르기"
+    },
+    {
+      "id": "value.020",
+      "english": "PartImmune",
+      "korean": "부위 면역 중"
+    },
+    {
+      "id": "value.021",
+      "english": "Partner HP",
+      "korean": "동료 체력"
+    },
+    {
+      "id": "value.022",
+      "english": "Player 1:",
+      "korean": "플레이어 1:"
+    },
+    {
+      "id": "value.023",
+      "english": "Player 2:",
+      "korean": "플레이어 2:"
+    },
+    {
+      "id": "value.024",
+      "english": "STAGGERED",
+      "korean": "경직"
+    },
+    {
+      "id": "value.025",
+      "english": "TimeLimit",
+      "korean": "시간 초과"
+    },
+    {
+      "id": "value.026",
+      "english": "Knockdown",
+      "korean": "넘어짐"
+    },
+    {
+      "id": "value.027",
+      "english": "NotBraced",
+      "korean": "고정 자세 필요"
+    },
+    {
+      "id": "value.028",
+      "english": "Boss HP:",
+      "korean": "보스 체력:"
+    },
+    {
+      "id": "value.029",
+      "english": "Players:",
+      "korean": "인원:"
+    },
+    {
+      "id": "value.030",
+      "english": "TUTORIAL",
+      "korean": "튜토리얼"
+    },
+    {
+      "id": "value.031",
+      "english": "SpinGrab",
+      "korean": "회전 잡기"
+    },
+    {
+      "id": "value.032",
+      "english": "NoAnchor",
+      "korean": "감김 필요"
+    },
+    {
+      "id": "value.033",
+      "english": "Buffered",
+      "korean": "완충"
+    },
+    {
+      "id": "value.034",
+      "english": "Snatched",
+      "korean": "낚아챔"
+    },
+    {
+      "id": "value.035",
+      "english": "Flexible",
+      "korean": "유연"
+    },
+    {
+      "id": "value.036",
+      "english": "FrontLeg",
+      "korean": "앞다리"
+    },
+    {
+      "id": "value.037",
+      "english": "Tutorial",
+      "korean": "튜토리얼"
+    },
+    {
+      "id": "value.038",
+      "english": "Staggers",
+      "korean": "제압 횟수"
+    },
+    {
+      "id": "value.039",
+      "english": "Distance",
+      "korean": "거리"
+    },
+    {
+      "id": "value.040",
+      "english": "Rescue:",
+      "korean": "구조:"
+    },
+    {
+      "id": "value.041",
+      "english": "PARTNER",
+      "korean": "동료"
+    },
+    {
+      "id": "value.042",
+      "english": "Grabbed",
+      "korean": "잡힘"
+    },
+    {
+      "id": "value.043",
+      "english": "Wrapped",
+      "korean": "감김"
+    },
+    {
+      "id": "value.044",
+      "english": "Revives",
+      "korean": "구조 횟수"
+    },
+    {
+      "id": "value.045",
+      "english": "Stamina",
+      "korean": "스태미나"
+    },
+    {
+      "id": "value.046",
+      "english": "State:",
+      "korean": "상태:"
+    },
+    {
+      "id": "value.047",
+      "english": "Ready:",
+      "korean": "준비:"
+    },
+    {
+      "id": "value.048",
+      "english": "Chain:",
+      "korean": "사슬:"
+    },
+    {
+      "id": "value.049",
+      "english": "REVIVE",
+      "korean": "구조"
+    },
+    {
+      "id": "value.050",
+      "english": "Attack",
+      "korean": "공격"
+    },
+    {
+      "id": "value.051",
+      "english": "Charge",
+      "korean": "돌진"
+    },
+    {
+      "id": "value.052",
+      "english": "Braced",
+      "korean": "고정"
+    },
+    {
+      "id": "value.053",
+      "english": "Combat",
+      "korean": "전투"
+    },
+    {
+      "id": "value.054",
+      "english": "Result",
+      "korean": "결과"
+    },
+    {
+      "id": "value.055",
+      "english": "Action",
+      "korean": "행동"
+    },
+    {
+      "id": "value.056",
+      "english": "Target",
+      "korean": "대상"
+    },
+    {
+      "id": "value.057",
+      "english": "Stance",
+      "korean": "자세"
+    },
+    {
+      "id": "value.058",
+      "english": "Anchor",
+      "korean": "감김점"
+    },
+    {
+      "id": "value.059",
+      "english": "Revive",
+      "korean": "구조"
+    },
+    {
+      "id": "value.060",
+      "english": "Pull:",
+      "korean": "당기기:"
+    },
+    {
+      "id": "value.061",
+      "english": "Hint:",
+      "korean": "안내:"
+    },
+    {
+      "id": "value.062",
+      "english": "CHAIN",
+      "korean": "사슬"
+    },
+    {
+      "id": "value.063",
+      "english": "Dodge",
+      "korean": "회피"
+    },
+    {
+      "id": "value.064",
+      "english": "Stomp",
+      "korean": "발구르기"
+    },
+    {
+      "id": "value.065",
+      "english": "Slack",
+      "korean": "여유"
+    },
+    {
+      "id": "value.066",
+      "english": "Trunk",
+      "korean": "코"
+    },
+    {
+      "id": "value.067",
+      "english": "Lobby",
+      "korean": "로비"
+    },
+    {
+      "id": "value.068",
+      "english": "Chain",
+      "korean": "사슬"
+    },
+    {
+      "id": "value.069",
+      "english": "False",
+      "korean": "미준비"
+    },
+    {
+      "id": "value.070",
+      "english": "PING",
+      "korean": "핑"
+    },
+    {
+      "id": "value.071",
+      "english": "Free",
+      "korean": "행동 가능"
+    },
+    {
+      "id": "value.072",
+      "english": "Taut",
+      "korean": "긴장"
+    },
+    {
+      "id": "value.073",
+      "english": "Body",
+      "korean": "몸통"
+    },
+    {
+      "id": "value.074",
+      "english": "Pull",
+      "korean": "당기기"
+    },
+    {
+      "id": "value.075",
+      "english": "Time",
+      "korean": "시간"
+    },
+    {
+      "id": "value.076",
+      "english": "True",
+      "korean": "준비"
+    },
+    {
+      "id": "value.077",
+      "english": "YOU",
+      "korean": "나"
+    },
+    {
+      "id": "value.078",
+      "english": "한국어",
+      "korean": "English"
+    },
+    {
+      "id": "settings.title",
+      "english": "Settings",
+      "korean": "설정"
+    },
+    {
+      "id": "settings.language",
+      "english": "Language",
+      "korean": "언어"
+    },
+    {
+      "id": "settings.sensitivity",
+      "english": "Mouse sensitivity",
+      "korean": "마우스 감도"
+    },
+    {
+      "id": "settings.shake",
+      "english": "Screen shake",
+      "korean": "화면 흔들림"
+    },
+    {
+      "id": "settings.textsize",
+      "english": "Text size",
+      "korean": "안내 글자 크기"
+    },
+    {
+      "id": "settings.controls",
+      "english": "Mouse: look | Esc: settings",
+      "korean": "마우스: 시점 회전 | Esc: 설정"
+    },
+    {
+      "id": "settings.on",
+      "english": "On",
+      "korean": "켜짐"
+    },
+    {
+      "id": "settings.off",
+      "english": "Off",
+      "korean": "꺼짐"
+    },
+    {
+      "id": "coop.brace",
+      "english": "Both players press Q to brace.",
+      "korean": "두 사람 모두 Q로 고정 자세를 취하세요."
+    },
+    {
+      "id": "coop.ground",
+      "english": "Stay on the ground.",
+      "korean": "지면에 서세요."
+    },
+    {
+      "id": "coop.angle",
+      "english": "Move to opposite sides of the boss.",
+      "korean": "보스 양측으로 이동하세요."
+    },
+    {
+      "id": "coop.hold",
+      "english": "Both players hold F at the same time.",
+      "korean": "두 사람이 동시에 F를 유지하세요."
+    },
+    {
+      "id": "coop.immune",
+      "english": "Wait for the part to recover.",
+      "korean": "부위 면역이 끝날 때까지 기다리세요."
+    },
+    {
+      "id": "coop.disabled",
+      "english": "Wait until both players can act.",
+      "korean": "두 사람 모두 행동할 수 있을 때까지 기다리세요."
+    },
+    {
+      "id": "coop.anchor",
+      "english": "Put the front leg between the chain and both players.",
+      "korean": "두 사람 사이 사슬이 앞다리를 지나도록 이동하세요."
+    },
+    {
+      "id": "connection.full",
+      "english": "The two-player room is full.",
+      "korean": "2인 방이 가득 찼습니다."
+    },
+    {
+      "id": "connection.started",
+      "english": "The raid has already started.",
+      "korean": "레이드가 이미 시작되었습니다."
+    },
+    {
+      "id": "ping.approach",
+      "english": "Approach",
+      "korean": "접근"
+    },
+    {
+      "id": "ping.release",
+      "english": "Release",
+      "korean": "해제"
+    },
+    {
+      "id": "ping.rescue",
+      "english": "Rescue",
+      "korean": "구조"
+    }
+  ]
+}

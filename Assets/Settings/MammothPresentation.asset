@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ead9dccb7018426db12ea38e05344fbc, type: 3}
+  m_Name: MammothPresentation
+  m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidBossPresentation
+  idle: {fileID: 4819393760387232341, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+  walk: {fileID: 4792064784619248935, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+  telegraph: {fileID: 4382654818515747340, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+  stagger: {fileID: -5262905510684563404, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+  transitionSeconds: 0.12
+  moves:
+  - attack: 1
+    clip: {fileID: 5728204114261774461, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+    contact: 0.55
+    instantImpact: 1
+  - attack: 2
+    clip: {fileID: -3073961994447764421, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+    contact: 0.2
+    instantImpact: 0
+  - attack: 3
+    clip: {fileID: -2986301221981190679, guid: ef714f5731974f34f90150efcd8509ce, type: 3}
+    contact: 0.5
+    instantImpact: 1

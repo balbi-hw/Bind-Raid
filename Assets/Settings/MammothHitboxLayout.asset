@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c70caa260cf9416e9324e3998b792414, type: 3}
+  m_Name: MammothHitboxLayout
+  m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidHitboxLayout
+  volumes:
+  - label: Body
+    part: 0
+    center: {x: 0, y: 0, z: 0}
+    size: {x: 1.75, y: 1, z: 2.6}
+    rotation: {x: 0, y: 0, z: 0}
+  - label: Trunk
+    part: 1
+    center: {x: 0, y: -0.1, z: 1.65}
+    size: {x: 0.45, y: 0.65, z: 0.9}
+    rotation: {x: 0, y: 0, z: 0}
+  - label: FrontLegRight
+    part: 2
+    center: {x: 0.5, y: -0.25, z: 0.9}
+    size: {x: 0.38, y: 0.5, z: 0.5}
+    rotation: {x: 0, y: 0, z: 0}
+  - label: FrontLegLeft
+    part: 2
+    center: {x: -0.5, y: -0.25, z: 0.9}
+    size: {x: 0.38, y: 0.5, z: 0.5}
+    rotation: {x: 0, y: 0, z: 0}

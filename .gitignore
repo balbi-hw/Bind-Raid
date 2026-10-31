@@ -36,3 +36,5 @@ raid-*.log
 *.blend1
 *.blend1.meta
 unity-*.log
+
+/.verification/

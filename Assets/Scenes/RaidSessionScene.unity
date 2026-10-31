@@ -30495,6 +30495,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b5a71a57cc874cd49b432157f2e8d62e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.PrototypeCamera
+  settings: {fileID: 11400000, guid: a61895e07a6541c9953dfc93f70ccdaf, type: 2}
   target: {fileID: 0}
   distance: 4.5
   mouseSensitivity: 3
@@ -30851,6 +30852,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c84b3d0609cdca7428fec83aa40b153c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidBossVisual
+  presentation: {fileID: 11400000, guid: 60ee452276a240dd9d69d5e652e186f2, type: 2}
   bodyRoot: {fileID: 1668551857}
   body: {fileID: 1588008339}
   trunk: {fileID: 429364377}

@@ -1,70 +1,81 @@
 using UnityEngine;
-
 namespace ChainboundRaid
 {
+    [DefaultExecutionOrder(-100)]
     public class PrototypeCamera : MonoBehaviour
     {
         public Transform target;
-        public float distance = 4.5f;
-        public float mouseSensitivity = 3f;
-        public float collisionRadius = 0.2f;
-        float yaw;
-        float pitch = 18f;
-        int lastShakeSequence;
-        float shakeUntil;
-
+        public RaidCameraSettings settings;
+        RaidCameraSettings config;
+        bool ownsSettings;
+        RaidPlayer followed;
+        Transform previousTarget;
+        Camera view;
+        float yaw, pitch = 18f, actualDistance, shakeUntil;
+        Vector3 smoothedFocus, focusVelocity;
+        int lastDamageSequence;
+        bool initialized;
+        void Awake()
+        {
+            config = settings;
+            if (config == null) { config = ScriptableObject.CreateInstance<RaidCameraSettings>(); ownsSettings = true; }
+            view = GetComponent<Camera>();
+            actualDistance = config.distance;
+        }
+        void OnDestroy() { if (ownsSettings) Destroy(config); }
         void Update()
         {
-            if (RaidSession.Instance == null) return;
-            bool combat = RaidSession.Instance.CurrentState == RaidSessionState.Combat;
-            if (!combat) Cursor.lockState = CursorLockMode.None;
-            else if (Input.GetKeyDown(KeyCode.Escape)) Cursor.lockState = CursorLockMode.None;
-            else if (Input.GetMouseButtonDown(0)) Cursor.lockState = CursorLockMode.Locked;
-            if (combat && Cursor.lockState == CursorLockMode.Locked)
+            if (previousTarget != target)
             {
-                yaw += Input.GetAxis("Mouse X") * mouseSensitivity;
-                pitch = Mathf.Clamp(pitch - Input.GetAxis("Mouse Y") * mouseSensitivity, -25f, 65f);
+                previousTarget = target; followed = target != null ? target.GetComponent<RaidPlayer>() : null;
+                initialized = false;
+                lastDamageSequence = followed != null ? followed.DamageSequence.Value : 0;
             }
-            if (combat && target != null && RaidBoss.Instance != null)
+            if (!RaidInputContext.AcceptingInput) return;
+            yaw += Input.GetAxis("Mouse X") * RaidUserSettings.Sensitivity;
+            pitch = Mathf.Clamp(pitch - Input.GetAxis("Mouse Y") * RaidUserSettings.Sensitivity, config.minimumPitch, config.maximumPitch);
+            if (followed != null && followed.TryGetLockFocus(out var point, out _))
             {
-                var player = target.GetComponent<RaidPlayer>();
-                if (player != null && player.LockEnabled.Value)
-                {
-                    Vector3 toBoss = RaidBoss.Instance.transform.position - target.position;
-                    yaw = Mathf.LerpAngle(yaw, Mathf.Atan2(toBoss.x, toBoss.z) * Mathf.Rad2Deg,
-                        4f * Time.deltaTime);
-                }
+                Vector3 direction = point - target.position;
+                yaw = Mathf.LerpAngle(yaw, Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg,
+                    1f - Mathf.Exp(-config.lockRotationSharpness * Time.deltaTime));
             }
         }
-
         void LateUpdate()
         {
             if (target == null)
             {
-                transform.position = new Vector3(0f, 8f, -12f);
-                transform.LookAt(new Vector3(0f, 1f, 2f));
+                transform.position = config.lobbyPosition;
+                if ((config.lobbyFocus - config.lobbyPosition).sqrMagnitude > .001f) transform.LookAt(config.lobbyFocus);
                 return;
             }
-            Vector3 focus = target.position + Vector3.up * 1.5f;
-            Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-            Vector3 back = rotation * Vector3.back;
-            float actualDistance = distance;
-            if (Physics.SphereCast(focus, collisionRadius, back, out var hit, distance,
-                ~0, QueryTriggerInteraction.Ignore) && hit.transform != target)
-                actualDistance = Mathf.Max(0.5f, hit.distance - 0.1f);
-            transform.position = Vector3.Lerp(transform.position, focus + back * actualDistance, 12f * Time.deltaTime);
-            transform.LookAt(focus);
-            var boss = RaidBoss.Instance;
-            if (boss != null && boss.Stage.Value == BossAttackStage.Active &&
-                boss.AttackSequence.Value != lastShakeSequence)
+            Vector3 focus = target.position + Vector3.up * config.focusHeight + (followed != null ? followed.PresentationOffset : Vector3.zero);
+            float desiredDistance = config.distance;
+            if (followed != null && followed.TryGetLockFocus(out var point, out float radius))
             {
-                lastShakeSequence = boss.AttackSequence.Value;
-                shakeUntil = Time.time + .22f;
+                focus += Vector3.ClampMagnitude((point - focus) * config.lockFocusBlend, config.maxFocusOffset);
+                float fov = view != null ? view.fieldOfView : 60f;
+                desiredDistance = Mathf.Clamp(radius / Mathf.Tan(fov * .5f * Mathf.Deg2Rad), config.distance, config.maximumDistance);
             }
-            if (RaidHud.ScreenShakeEnabled && Time.time < shakeUntil)
-                transform.position += new Vector3(
-                    Mathf.PerlinNoise(Time.time * 37f, 0f) - .5f,
-                    Mathf.PerlinNoise(0f, Time.time * 41f) - .5f, 0f) * .12f;
+            if (!initialized) { smoothedFocus = focus; initialized = true; }
+            smoothedFocus = Vector3.SmoothDamp(smoothedFocus, focus, ref focusVelocity, config.focusSmoothSeconds);
+            Vector3 back = Quaternion.Euler(pitch, yaw, 0f) * Vector3.back;
+            float clearDistance = desiredDistance;
+            foreach (var hit in Physics.SphereCastAll(smoothedFocus, config.collisionRadius, back, desiredDistance,
+                config.collisionLayers, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.transform == target || hit.transform.IsChildOf(target) || hit.collider.GetComponentInParent<RaidPlayer>() != null) continue;
+                clearDistance = Mathf.Min(clearDistance, Mathf.Max(config.minimumDistance, hit.distance - config.collisionPadding));
+            }
+            actualDistance = clearDistance < actualDistance ? clearDistance :
+                Mathf.MoveTowards(actualDistance, clearDistance, config.returnSpeed * Time.deltaTime);
+            transform.position = smoothedFocus + back * actualDistance;
+            transform.LookAt(smoothedFocus);
+            if (followed != null && followed.DamageSequence.Value != lastDamageSequence)
+            { lastDamageSequence = followed.DamageSequence.Value; shakeUntil = Time.time + config.shakeSeconds; }
+            if (RaidUserSettings.ScreenShake && Time.time < shakeUntil)
+                transform.position += transform.right * (Mathf.PerlinNoise(Time.time * 37f, 0f) - .5f) * config.shakeAmplitude +
+                    transform.up * (Mathf.PerlinNoise(0f, Time.time * 41f) - .5f) * config.shakeAmplitude;
         }
     }
 }

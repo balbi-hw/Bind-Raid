@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4d6b25b544d4d08b29bd4b10017c346, type: 3}
+  m_Name: PlayerMovementSettings
+  m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidMovementSettings
+  walkSpeed: 5
+  sprintSpeed: 7
+  dodgeSpeed: 9
+  dodgeSeconds: 0.3
+  gravity: -20
+  maxStamina: 100
+  staminaRecoveryPerSecond: 14
+  sprintCostPerSecond: 12
+  dodgeCost: 20
+  bracedSpeedMultiplier: 0.85
+  turnSpeed: 12
+  inputTimeoutSeconds: 0.3
+  correctionSharpness: 18
+  snapDistance: 2

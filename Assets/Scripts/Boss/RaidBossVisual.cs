@@ -19,10 +19,17 @@ namespace ChainboundRaid
         MaterialPropertyBlock colorBlock;
         int previousStomp;
         float stompFlash;
-        string currentAnimation;
-        BossAttackStage previousStage;
-        float recoveryAnimationUntil;
+        public RaidBossPresentation presentation;
+        RaidAnimationDriver animationDriver;
+        RaidCharacterPresentation animationBridge;
+        Vector3 previousPosition;
 
+        void OnDisable()
+        {
+            animationDriver?.Dispose(); animationDriver = null;
+            if (animationBridge != null) Destroy(animationBridge);
+            animationBridge = null;
+        }
         void Awake()
         {
             boss = GetComponent<RaidBoss>();
@@ -49,32 +56,26 @@ namespace ChainboundRaid
             bool warning = boss.Stage.Value == BossAttackStage.Telegraph &&
                 boss.CurrentAttack.Value == BossAttack.Stomp;
             bool staggered = boss.Staggered.Value;
-            if (boss.Stage.Value == BossAttackStage.Recovery && previousStage != BossAttackStage.Recovery)
-                recoveryAnimationUntil = Time.time + (boss.CurrentAttack.Value == BossAttack.Stomp ? 1f :
-                    boss.CurrentAttack.Value == BossAttack.TrunkSweep ? 1.2f : 0f);
-            string animation = "Idle";
-            if (staggered) animation = "Stagger";
-            else if (boss.Stage.Value == BossAttackStage.Telegraph) animation = "Telegraph";
-            else if (boss.Stage.Value == BossAttackStage.Active)
+            if (animationDriver == null && bossAnimator != null && presentation != null)
             {
-                animation = boss.CurrentAttack.Value switch
-                {
-                    BossAttack.Stomp => "Stomp",
-                    BossAttack.TrunkSweep => "TrunkSweep",
-                    BossAttack.Charge => "Charge",
-                    BossAttack.ChainSnatch => "TrunkSweep",
-                    BossAttack.SpinGrab => "TrunkSweep",
-                    _ => "Idle"
-                };
+                animationBridge = ScriptableObject.CreateInstance<RaidCharacterPresentation>();
+                animationBridge.idle = presentation.idle; animationBridge.walk = animationBridge.sprint = presentation.walk;
+                animationBridge.transitionSeconds = presentation.transitionSeconds;
+                animationBridge.walkReferenceSpeed = boss.settings != null && boss.settings.moveSet != null ? boss.settings.moveSet.approachSpeed : 2.5f;
+                animationBridge.sprintReferenceSpeed = animationBridge.walkReferenceSpeed + 1f;
+                animationDriver = new RaidAnimationDriver(bossAnimator, animationBridge);
+                previousPosition = transform.position;
             }
-            else if (boss.Stage.Value == BossAttackStage.Recovery && Time.time < recoveryAnimationUntil)
-                animation = boss.CurrentAttack.Value == BossAttack.Stomp ? "Stomp" : "TrunkSweep";
-            if (bossAnimator != null && animation != currentAnimation)
+            if (animationDriver != null)
             {
-                bossAnimator.Play(animation, 0, 0f);
-                currentAnimation = animation;
+                float speed = Vector3.Distance(transform.position, previousPosition) / Mathf.Max(.001f, Time.deltaTime);
+                previousPosition = transform.position;
+                float progress = Mathf.Clamp01((float)(boss.NetworkManager.ServerTime.Time - boss.StageStartedAt.Value) / Mathf.Max(.01f, boss.StageDuration.Value));
+                var clip = presentation.Sample(boss.CurrentAttack.Value, boss.Stage.Value, progress, out float normalized);
+                if (staggered) clip = presentation.stagger;
+                animationDriver.Evaluate(speed, clip, (uint)boss.AttackSequence.Value, normalized,
+                    !staggered && clip != null && boss.Stage.Value != BossAttackStage.Idle, Time.deltaTime);
             }
-            previousStage = boss.Stage.Value;
             if (boss.StompSequence.Value != previousStomp)
             { previousStomp = boss.StompSequence.Value; stompFlash = 0.25f; }
             stompFlash = Mathf.Max(0f, stompFlash - Time.deltaTime);
@@ -88,12 +89,14 @@ namespace ChainboundRaid
             }
             Color bodyColor = staggered ? new Color(.35f, .85f, 1f) : stompFlash > 0f ? Color.white : warning ?
                 new Color(1f, 0.25f, 0.12f) : new Color(0.46f, 0.31f, 0.5f);
+            bool hitFlash = boss.NetworkManager != null && boss.NetworkManager.ServerTime.Time < boss.HitFlashUntil.Value;
+            if (hitFlash && !warning) bodyColor = new Color(1f, .8f, .4f);
             SetColor(body, bodyColor);
             if (bossRenderers != null)
                 foreach (var renderer in bossRenderers)
                     SetColor(renderer, staggered ? new Color(.55f, .85f, 1f) :
                         stompFlash > 0f ? Color.white : warning ? new Color(1f, .55f, .45f) :
-                        Color.white);
+                        hitFlash ? new Color(1f, .8f, .4f) : Color.white);
             SetColor(trunk, boss.TrunkDurability.Value > 0f ? new Color(0.95f, 0.63f, 0.22f) : Color.gray);
             SetColor(frontLeg, boss.FrontLegDurability.Value > 0f ? new Color(0.9f, 0.67f, 0.24f) : Color.gray);
             if (stompRing != null)

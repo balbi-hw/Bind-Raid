@@ -8,12 +8,17 @@ namespace ChainboundRaid
     public enum BossAttackStage { Idle, Telegraph, Active, Recovery }
 
     [RequireComponent(typeof(NetworkObject))]
-    public sealed class RaidBoss : NetworkBehaviour
+    public sealed partial class RaidBoss : NetworkBehaviour, IRaidDamageReceiver
     {
         public static RaidBoss Instance { get; private set; }
-        public static readonly Vector3 FrontLegAnchorLocal = new Vector3(.5f, -.18f, 1f);
-        public static readonly Vector3 TrunkAnchorLocal = new Vector3(0f, .25f, 1.6f);
+        public Vector3 FrontLegAnchorLocal => settings != null && settings.anchors != null ? settings.anchors.frontLeg : Vector3.zero;
+        public Vector3 TrunkAnchorLocal => settings != null && settings.anchors != null ? settings.anchors.trunk : Vector3.zero;
         public RaidBossSettings settings;
+        public readonly NetworkVariable<double> StageStartedAt = new NetworkVariable<double>();
+        public readonly NetworkVariable<float> StageDuration = new NetworkVariable<float>();
+        public readonly NetworkVariable<double> HitFlashUntil = new NetworkVariable<double>();
+        bool hurtboxesBuilt;
+        RaidTargetFocus focusTarget;
         public float maxHealth = 1000f;
         public float attackPower = 35f;
         public float defense = 15f;
@@ -42,7 +47,10 @@ namespace ChainboundRaid
         float stageEndTime;
         float staggerUntil;
         float nextAttackTime;
-        int selectionIndex;
+        readonly Dictionary<BossAttack, float> moveReadyAt = new Dictionary<BossAttack, float>();
+        BossAttack previousAttack;
+        float controlReadyAt;
+        Collider bodyCollider;
         bool snatchResolving;
         RaidPlayer grabbedPlayer;
         float spinRescueHeld;
@@ -52,21 +60,23 @@ namespace ChainboundRaid
         Vector3 initialPosition;
         Quaternion initialRotation;
 
-        public Vector3 RescuePoint => transform.position + transform.right * 3f;
-
-        public float DistanceToBodySurface(Vector3 point)
+        public Vector3 RescuePoint => transform.TransformPoint(settings != null && settings.anchors != null ? settings.anchors.rescue : Vector3.zero);
+        public bool TryGetChainAnchor(RaidChainAnchor anchor, out Vector3 point)
         {
-            Vector3 offset = point - transform.position;
-            float side = Mathf.Abs(Vector3.Dot(offset, transform.right));
-            float forward = Vector3.Dot(offset, transform.forward);
-            float outsideSide = Mathf.Max(0f, side - 2.6f);
-            float outsideLength = Mathf.Max(0f, forward > 0f ? forward - 4.5f : -3.5f - forward);
-            return new Vector2(outsideSide, outsideLength).magnitude;
+            point = transform.position;
+            if (settings == null || settings.anchors == null || Health.Value <= 0f) return false;
+            if (anchor == RaidChainAnchor.FrontLeg && FrontLegDurability.Value > 0f)
+            { point = transform.TransformPoint(FrontLegAnchorLocal); return true; }
+            if (anchor == RaidChainAnchor.Trunk)
+            { point = transform.TransformPoint(TrunkAnchorLocal); return true; }
+            return false;
         }
 
         void Awake()
         {
             Instance = this;
+            bodyCollider = GetComponent<Collider>();
+            InitializeMoves();
             initialPosition = transform.position;
             initialRotation = transform.rotation;
         }
@@ -78,6 +88,14 @@ namespace ChainboundRaid
 
         public override void OnNetworkSpawn()
         {
+            if (!hurtboxesBuilt && settings != null && settings.hitboxLayout != null)
+            {
+                settings.hitboxLayout.Build(transform, this);
+                hurtboxesBuilt = true;
+            }
+            focusTarget = GetComponent<RaidTargetFocus>();
+            if (focusTarget == null) focusTarget = gameObject.AddComponent<RaidTargetFocus>();
+            focusTarget.Refresh();
             if (!IsServer) return;
             Health.Value = maxHealth;
             TrunkDurability.Value = partMaxDurability;
@@ -110,9 +128,17 @@ namespace ChainboundRaid
             {
                 case BossAttackStage.Idle:
                     if (!tutorial) FaceTarget();
-                    if (!tutorial && !TestPassive && Time.time >= nextAttackTime) StartAttack(SelectAttack());
+                    if (!tutorial && !TestPassive && Time.time >= nextAttackTime)
+                    {
+                        BossAttack selected = SelectAttack();
+                        if (selected != BossAttack.None) StartAttack(selected);
+                        else ApproachTarget();
+                    }
                     break;
                 case BossAttackStage.Telegraph:
+                    var move = settings.moveSet != null ? settings.moveSet.Get(CurrentAttack.Value) : null;
+                    transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(AttackDirection.Value),
+                        (move != null ? move.turnDegreesPerSecond : 150f) * Time.deltaTime);
                     if (Time.time >= stageEndTime) BeginActive();
                     break;
                 case BossAttackStage.Active:
@@ -127,12 +153,57 @@ namespace ChainboundRaid
 
         BossAttack SelectAttack()
         {
-            BossAttack[] phaseOne = { BossAttack.Stomp, BossAttack.TrunkSweep, BossAttack.Charge,
-                BossAttack.ChainSnatch, BossAttack.Stomp, BossAttack.SpinGrab };
-            BossAttack[] phaseTwo = { BossAttack.ChainSnatch, BossAttack.Charge,
-                BossAttack.SpinGrab, BossAttack.Stomp, BossAttack.ChainSnatch, BossAttack.TrunkSweep };
-            var order = Phase.Value == 1 ? phaseOne : phaseTwo;
-            return order[selectionIndex++ % order.Length];
+            if (settings.moveSet == null) return BossAttack.None;
+            var target = ChooseTarget();
+            Vector3 direction = target != null ? target.transform.position - transform.position : transform.forward;
+            direction.y = 0f;
+            var chain = RaidChain.Instance;
+            var context = new RaidBossDecisionContext {
+                distance = direction.magnitude, angle = Vector3.Angle(transform.forward, direction),
+                now = Time.time, phase = Phase.Value, targetAvailable = target != null,
+                chainAvailable = chain != null, chainTaut = chain != null && chain.PathLength.Value >= chain.warningLength,
+                controlActive = grabbedPlayer != null || (chain != null && chain.ActiveAnchor.Value == RaidChainAnchor.Trunk),
+                controlReadyAt = controlReadyAt, previous = previousAttack
+            };
+            return RaidBossDecision.Select(settings.moveSet, context, moveReadyAt, Random.value);
+        }
+
+        void ApproachTarget()
+        {
+            var target = ChooseTarget();
+            if (target == null || settings.moveSet == null) return;
+            Vector3 direction = target.transform.position - transform.position; direction.y = 0f;
+            if (direction.magnitude > settings.moveSet.approachStopDistance)
+                MoveBoss(direction.normalized * settings.moveSet.approachSpeed * Time.deltaTime);
+        }
+
+        bool MoveBoss(Vector3 displacement)
+        {
+            bool blocked = false;
+            float distance = displacement.magnitude;
+            if (distance < .00001f) return false;
+            Vector3 direction = displacement / distance;
+            if (bodyCollider != null)
+            {
+                var bounds = bodyCollider.bounds;
+                Vector3 extents = Vector3.Max(bounds.extents - Vector3.one * .05f, Vector3.one * .05f);
+                foreach (var hit in Physics.BoxCastAll(bounds.center, extents, direction, Quaternion.identity,
+                    distance, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (hit.transform == transform || hit.transform.IsChildOf(transform) ||
+                        hit.collider.GetComponentInParent<RaidPlayer>() != null || hit.normal.y > .5f) continue;
+                    distance = Mathf.Min(distance, Mathf.Max(0f, hit.distance - .05f)); blocked = true;
+                }
+            }
+            Vector3 desired = transform.position + direction * distance;
+            if (settings.arena != null)
+            {
+                Vector3 clamped = settings.arena.Clamp(desired);
+                blocked |= (clamped - desired).sqrMagnitude > .000001f;
+                desired = clamped;
+            }
+            transform.position = desired;
+            return blocked;
         }
 
         public void ForceAttackForTest(BossAttack attack)
@@ -155,7 +226,7 @@ namespace ChainboundRaid
             Vector3 direction = target.transform.position - transform.position;
             direction.y = 0f;
             if (direction.sqrMagnitude > .01f)
-            { AttackDirection.Value = direction.normalized; transform.rotation = Quaternion.LookRotation(direction); }
+            { AttackDirection.Value = direction.normalized; }
         }
 
         void StartAttack(BossAttack attack)
@@ -174,7 +245,9 @@ namespace ChainboundRaid
             Vector3 direction = target != null ? target.transform.position - transform.position : transform.forward;
             direction.y = 0f;
             AttackDirection.Value = direction.sqrMagnitude > .001f ? direction.normalized : transform.forward;
-            transform.rotation = Quaternion.LookRotation(AttackDirection.Value);
+            var moveDefinition = settings.moveSet != null ? settings.moveSet.Get(attack) : null;
+            if (moveDefinition != null) moveReadyAt[attack] = Time.time + moveDefinition.cooldown;
+            previousAttack = attack;
             float duration = attack switch
             {
                 BossAttack.Stomp => settings.stompTelegraph,
@@ -183,7 +256,8 @@ namespace ChainboundRaid
                 BossAttack.ChainSnatch => settings.snatchTelegraph,
                 _ => settings.spinTelegraph
             };
-            stageEndTime = Time.time + duration;
+            if (moveDefinition != null) duration = moveDefinition.telegraph;
+            SetAttackDuration(duration);
             TelegraphEndServerTime.Value = NetworkManager.ServerTime.Time + duration;
             Telegraphing.Value = true;
             Debug.Log("BOSS_EVENT: Telegraph attack=" + attack + " id=" + AttackSequence.Value +
@@ -195,7 +269,7 @@ namespace ChainboundRaid
             RaidPlayer target = null;
             foreach (var player in RaidSession.Instance.Players)
             {
-                if (player == null || player.IsDown) continue;
+                if (player == null || !RaidMovementMotor.CanMove(player.Action.Value)) continue;
                 if (target == null || Vector3.Distance(player.transform.position, transform.position) <
                     Vector3.Distance(target.transform.position, transform.position)) target = player;
             }
@@ -210,7 +284,7 @@ namespace ChainboundRaid
             direction.y = 0f;
             if (direction.sqrMagnitude < .001f) return;
             transform.rotation = Quaternion.RotateTowards(transform.rotation,
-                Quaternion.LookRotation(direction), 150f * Time.deltaTime);
+                Quaternion.LookRotation(direction), (settings.moveSet != null ? settings.moveSet.idleTurnSpeed : 150f) * Time.deltaTime);
         }
 
         RaidPlayer TargetPlayer()
@@ -225,102 +299,12 @@ namespace ChainboundRaid
             Telegraphing.Value = false;
             Stage.Value = BossAttackStage.Active;
             Debug.Log("BOSS_EVENT: Active attack=" + CurrentAttack.Value + " id=" + AttackSequence.Value);
-            switch (CurrentAttack.Value)
-            {
-                case BossAttack.Stomp:
-                    StompSequence.Value++;
-                    foreach (var player in RaidSession.Instance.Players)
-                        if (player != null && FlatDistance(player.transform.position, AttackOrigin.Value) <= settings.stompRadius)
-                            HitOnce(player, settings.stompPower, true);
-                    Recover();
-                    break;
-                case BossAttack.TrunkSweep:
-                    foreach (var player in RaidSession.Instance.Players)
-                    {
-                        if (player == null || FlatDistance(player.transform.position, AttackOrigin.Value) > settings.sweepRadius) continue;
-                        Vector3 relative = player.transform.position - AttackOrigin.Value; relative.y = 0f;
-                        if (Vector3.Angle(AttackDirection.Value, relative) > settings.sweepHalfAngle) continue;
-                        HitOnce(player, settings.sweepPower, false);
-                        player.StartForcedMove(relative, settings.sweepPushDistance, settings.forcedMoveSpeedLimit);
-                    }
-                    Recover();
-                    break;
-                case BossAttack.Charge:
-                    stageEndTime = Time.time + settings.chargeDistance / Mathf.Max(.1f, settings.chargeSpeed);
-                    break;
-                case BossAttack.ChainSnatch:
-                    if (RaidChain.Instance == null || RaidChain.Instance.PathLength.Value < RaidChain.Instance.warningLength ||
-                        !RaidChain.Instance.BeginSnatch())
-                    { SnatchAvoidCount++; Debug.Log("BOSS_EVENT: SnatchAvoided"); Recover(); }
-                    else stageEndTime = Time.time + settings.snatchResponse;
-                    break;
-                case BossAttack.SpinGrab:
-                    grabbedPlayer = TargetPlayer();
-                    if (grabbedPlayer == null || FlatDistance(grabbedPlayer.transform.position, transform.position) > settings.spinGrabRange ||
-                        !grabbedPlayer.SetGrabbedByBoss())
-                    { Debug.Log("BOSS_EVENT: SpinAvoided"); grabbedPlayer = null; Recover(); }
-                    else
-                    {
-                        stageEndTime = Time.time + settings.spinDuration;
-                        spinRescueHeld = 0f;
-                        SpinSpeedFactor.Value = 1f;
-                    }
-                    break;
-            }
+            if (moves.TryGetValue(CurrentAttack.Value, out var move)) move.begin?.Invoke();
         }
 
         void TickActive()
         {
-            switch (CurrentAttack.Value)
-            {
-                case BossAttack.Charge:
-                    transform.position += AttackDirection.Value * settings.chargeSpeed * Time.deltaTime;
-                    Vector3 chargeBack = transform.position - transform.forward * settings.chargeBodyBack;
-                    Vector3 chargeFront = transform.position + transform.forward * settings.chargeBodyFront;
-                    foreach (var player in RaidSession.Instance.Players)
-                        if (player != null && FlatDistanceToSegment(player.transform.position,
-                            chargeBack, chargeFront) <= settings.chargeWidth)
-                            HitOnce(player, settings.chargePower, false);
-                    if (Mathf.Abs(transform.position.x) >= 14f || Mathf.Abs(transform.position.z) >= 11f)
-                    { ApplyCooperationStagger(settings.staggerSeconds); return; }
-                    if (Time.time >= stageEndTime) Recover();
-                    break;
-                case BossAttack.ChainSnatch:
-                    if (RaidChain.Instance == null || RaidChain.Instance.ActiveAnchor.Value != RaidChainAnchor.Trunk)
-                    { Recover(); return; }
-                    if (Time.time < stageEndTime) return;
-                    if (!snatchResolving)
-                    {
-                        snatchResolving = true;
-                        SnatchPulling.Value = true;
-                        stageEndTime = Time.time + settings.snatchPullDistance /
-                            Mathf.Max(.1f, settings.forcedMoveSpeedLimit);
-                        foreach (var player in RaidSession.Instance.Players)
-                            if (player != null) player.StartForcedMove(transform.position - player.transform.position,
-                                settings.snatchPullDistance, settings.forcedMoveSpeedLimit);
-                        return;
-                    }
-                    foreach (var player in RaidSession.Instance.Players)
-                        if (player != null) HitOnce(player, settings.snatchPower, false);
-                    RaidChain.Instance.EndSnatch();
-                    Recover();
-                    break;
-                case BossAttack.SpinGrab:
-                    if (grabbedPlayer == null || grabbedPlayer.Action.Value != RaidAction.Grabbed)
-                    { Recover(); return; }
-                    TickSpinRescue();
-                    if (Stage.Value != BossAttackStage.Active || Time.time < stageEndTime) return;
-                    RaidPlayer free = FreePlayer();
-                    if (free != null && RaidChain.Instance != null &&
-                        RaidChain.Instance.PathLength.Value >= RaidChain.Instance.warningLength)
-                        HitOnce(free, settings.spinTensionPower, false);
-                    bool slowed = grabbedPlayer.StruggleHeld.Value;
-                    grabbedPlayer.ReleaseBossGrab();
-                    HitOnce(grabbedPlayer, settings.spinLandingPower * (slowed ? .75f : 1f), false);
-                    grabbedPlayer = null;
-                    Recover();
-                    break;
-            }
+            if (moves.TryGetValue(CurrentAttack.Value, out var move)) move.tick?.Invoke();
         }
 
         void TickSpinRescue()
@@ -370,18 +354,35 @@ namespace ChainboundRaid
             Telegraphing.Value = false;
             SnatchPulling.Value = false;
             SpinRescueProgress.Value = 0f;
-            stageEndTime = Time.time + Mathf.Max(2f, settings.recoverySeconds);
+            var definition = settings.moveSet != null ? settings.moveSet.Get(CurrentAttack.Value) : null;
+            float recovery = definition != null ? definition.recovery : settings.recoverySeconds;
+            if (definition != null && settings.moveSet != null)
+            {
+                if ((definition.usesTrunk && TrunkDurability.Value <= 0f) || (definition.usesLeg && FrontLegDurability.Value <= 0f))
+                    recovery *= settings.moveSet.brokenPartRecoveryMultiplier;
+                if (definition.control) controlReadyAt = Time.time + settings.moveSet.controlRestSeconds;
+            }
+            SetAttackDuration(Mathf.Max(2f, recovery));
             nextAttackTime = stageEndTime;
             Debug.Log("BOSS_EVENT: Recovery attack=" + CurrentAttack.Value + " id=" + AttackSequence.Value);
         }
 
         void CancelAttack()
         {
+            var cancelled = settings != null && settings.moveSet != null ? settings.moveSet.Get(CurrentAttack.Value) : null;
+            if (cancelled != null && cancelled.control) controlReadyAt = Time.time + settings.moveSet.controlRestSeconds;
             if (grabbedPlayer != null) grabbedPlayer.ReleaseBossGrab();
             grabbedPlayer = null;
             if (RaidChain.Instance != null && RaidChain.Instance.ActiveAnchor.Value == RaidChainAnchor.Trunk)
                 RaidChain.Instance.EndSnatch();
             ResetAttack();
+        }
+
+        void SetAttackDuration(float seconds)
+        {
+            stageEndTime = Time.time + seconds;
+            StageStartedAt.Value = NetworkManager.ServerTime.Time;
+            StageDuration.Value = seconds;
         }
 
         void ResetAttack()
@@ -411,25 +412,29 @@ namespace ChainboundRaid
             return Vector3.Distance(point, start + segment * t);
         }
 
-        public void ReceiveHit(BossPart part, float basePower, float attackerPower, float partPower)
+        public bool TryReceiveHit(RaidHitRequest hit)
         {
             if (!IsServer || Health.Value <= 0f || RaidSession.Instance == null ||
-                RaidSession.Instance.CurrentState != RaidSessionState.Combat) return;
+                RaidSession.Instance.CurrentState != RaidSessionState.Combat || hit.Part < 0 || hit.Part > (int)BossPart.FrontLeg) return false;
+            BossPart part = (BossPart)hit.Part;
+            float basePower = hit.BasePower, attackerPower = hit.AttackPower, partPower = hit.PartPower;
+            HitFlashUntil.Value = NetworkManager.ServerTime.Time + .12d;
             Health.Value = Mathf.Max(0f, Health.Value - DamageCalculator.Calculate(basePower, attackerPower, defense));
             if (part == BossPart.Trunk)
             {
                 bool intact = TrunkDurability.Value > 0f;
                 TrunkDurability.Value = Mathf.Max(0f, TrunkDurability.Value - partPower);
                 if (intact && TrunkDurability.Value == 0f)
-                    ApplyCooperationStagger(settings != null ? settings.staggerSeconds : 3f);
+                { focusTarget?.SetSelectable((int)BossPart.Trunk, false); ApplyCooperationStagger(settings != null ? settings.staggerSeconds : 3f); }
             }
             else if (part == BossPart.FrontLeg)
             {
                 bool intact = FrontLegDurability.Value > 0f;
                 FrontLegDurability.Value = Mathf.Max(0f, FrontLegDurability.Value - partPower);
                 if (intact && FrontLegDurability.Value == 0f)
-                    ApplyCooperationStagger(settings != null ? settings.staggerSeconds : 3f);
+                { focusTarget?.SetSelectable((int)BossPart.FrontLeg, false); ApplyCooperationStagger(settings != null ? settings.staggerSeconds : 3f); }
             }
+            return true;
         }
 
         public void ApplyCooperationStagger(float seconds)
@@ -447,6 +452,7 @@ namespace ChainboundRaid
         {
             if (!IsServer) return;
             CancelAttack();
+            focusTarget?.ResetParts();
             transform.SetPositionAndRotation(initialPosition, initialRotation);
             Health.Value = maxHealth;
             TrunkDurability.Value = partMaxDurability;
@@ -457,7 +463,7 @@ namespace ChainboundRaid
             Staggered.Value = false;
             staggerUntil = 0f;
             Phase.Value = 1;
-            selectionIndex = 0;
+            moveReadyAt.Clear(); previousAttack = BossAttack.None; controlReadyAt = 0f;
             nextAttackTime = Time.time + (settings != null ? settings.firstAttackDelay : 3f);
         }
     }

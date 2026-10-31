@@ -20,13 +20,20 @@ namespace ChainboundRaid
         RaidPlayer player;
         MaterialPropertyBlock colorBlock;
         Vector3 previousPosition;
+        Vector3 previousPresentationOffset;
         RaidAction previousAction;
         float actionAge;
         float displayedSpeed;
         bool wasChangingStance;
         float stanceChangeAge;
         int visibleCharacter = -1;
-        string currentAnimation;
+        public RaidCharacterPresentation firstPresentation;
+        public RaidCharacterPresentation secondPresentation;
+        RaidAnimationDriver animationDriver;
+        RaidCharacterPresentation activePresentation;
+        float getUpRemaining;
+
+        void OnDisable() { animationDriver?.Dispose(); animationDriver = null; visibleCharacter = -1; }
 
         void Awake()
         {
@@ -50,16 +57,22 @@ namespace ChainboundRaid
         void LateUpdate()
         {
             if (modelRoot == null || player == null || !player.IsSpawned) return;
-            RaidAction action = player.Action.Value;
+            RaidAction action = player.PresentationAction;
             bool changingStance = player.StanceChanging.Value;
             if (changingStance && !wasChangingStance) stanceChangeAge = 0f;
             if (changingStance) stanceChangeAge += Time.deltaTime;
             wasChangingStance = changingStance;
-            if (action != previousAction) { actionAge = 0f; previousAction = action; }
+            if (action != previousAction)
+            {
+                if ((previousAction == RaidAction.Knockdown || previousAction == RaidAction.Incapacitated) && action == RaidAction.Free)
+                    getUpRemaining = activePresentation != null && activePresentation.getUp != null ? activePresentation.getUp.length : 0f;
+                actionAge = 0f; previousAction = action;
+            }
             else actionAge += Time.deltaTime;
 
-            float speed = (transform.position - previousPosition).magnitude / Mathf.Max(Time.deltaTime, 0.001f);
-            previousPosition = transform.position;
+            Vector3 displayedPosition = transform.position + player.PresentationOffset;
+            float speed = (displayedPosition - previousPosition).magnitude / Mathf.Max(Time.deltaTime, 0.001f);
+            previousPosition = displayedPosition;
             displayedSpeed = Mathf.Lerp(displayedSpeed, Mathf.Min(speed, 8f), 10f * Time.deltaTime);
             var session = RaidSession.Instance;
             int character = session != null && session.FirstPlayerClientId.Value == player.OwnerClientId ? 0 : 1;
@@ -68,25 +81,19 @@ namespace ChainboundRaid
                 if (firstCharacter != null) firstCharacter.SetActive(character == 0);
                 if (secondCharacter != null) secondCharacter.SetActive(character == 1);
                 visibleCharacter = character;
-                currentAnimation = null;
+                animationDriver?.Dispose();
+                activePresentation = character == 0 ? firstPresentation : secondPresentation;
+                var activeAnimator = character == 0 ? firstAnimator : secondAnimator;
+                animationDriver = activeAnimator != null && activePresentation != null ?
+                    new RaidAnimationDriver(activeAnimator, activePresentation) : null;
             }
-            Animator animator = character == 0 ? firstAnimator : secondAnimator;
-            string animation = action switch
-            {
-                RaidAction.Attack => "attack-melee-right",
-                RaidAction.StrongAttack => "attack-melee-left",
-                RaidAction.Dodge => "sprint",
-                RaidAction.HitReaction => "emote-no",
-                RaidAction.Knockdown or RaidAction.Incapacitated => "die",
-                RaidAction.Grabbed => "emote-no",
-                _ => player.PullHeld.Value ? "holding-both" :
-                    displayedSpeed > 4f ? "sprint" : displayedSpeed > .15f ? "walk" : "idle"
-            };
-            if (animator != null && animation != currentAnimation)
-            {
-                animator.Play(animation, 0, 0f);
-                currentAnimation = animation;
-            }
+            var clip = activePresentation != null ? activePresentation.ClipFor(action, player.PullHeld.Value,
+                player.ReviveIntent, player.Stance.Value == ChainStance.Braced) : null;
+            if (getUpRemaining > 0f && action == RaidAction.Free && activePresentation != null && activePresentation.getUp != null)
+            { clip = activePresentation.getUp; getUpRemaining -= Time.deltaTime; }
+            bool timedAttack = player.PresentedAttack != null && (action == RaidAction.Attack || action == RaidAction.StrongAttack);
+            animationDriver?.Evaluate(displayedSpeed, clip, player.AttackPlayback.Value.Instance,
+                player.AttackNormalizedTime, timedAttack, Time.deltaTime);
             float moveWeight = action == RaidAction.Free ? Mathf.Clamp01(displayedSpeed / 4f) : 0f;
             float walkCycle = Time.time * (6f + displayedSpeed);
             Vector3 position = Vector3.up * (0.025f * Mathf.Sin(Time.time * 2f) +
@@ -107,15 +114,15 @@ namespace ChainboundRaid
                 armSwing = 0f;
             }
 
-            switch (action)
+            if (clip == null && (activePresentation == null || activePresentation.proceduralFallback)) switch (action)
             {
                 case RaidAction.Attack:
-                    angles.x = -15f * Mathf.Sin(Mathf.Clamp01(actionAge / 0.55f) * Mathf.PI);
-                    weaponSwing = -95f * Mathf.Sin(Mathf.Clamp01(actionAge / 0.55f) * Mathf.PI);
+                    angles.x = -15f * Mathf.Sin(player.AttackNormalizedTime * Mathf.PI);
+                    weaponSwing = -95f * Mathf.Sin(player.AttackNormalizedTime * Mathf.PI);
                     break;
                 case RaidAction.StrongAttack:
-                    angles.x = -28f * Mathf.Sin(Mathf.Clamp01(actionAge / 0.9f) * Mathf.PI);
-                    weaponSwing = -155f * Mathf.Sin(Mathf.Clamp01(actionAge / 0.9f) * Mathf.PI);
+                    angles.x = -28f * Mathf.Sin(player.AttackNormalizedTime * Mathf.PI);
+                    weaponSwing = -155f * Mathf.Sin(player.AttackNormalizedTime * Mathf.PI);
                     break;
                 case RaidAction.Dodge:
                     angles.x = 65f * Mathf.Sin(Mathf.Clamp01(actionAge / 0.3f) * Mathf.PI);
@@ -140,7 +147,11 @@ namespace ChainboundRaid
                     break;
             }
 
-            modelRoot.localPosition = Vector3.Lerp(modelRoot.localPosition, position, 14f * Time.deltaTime);
+            if (action == RaidAction.Free && RaidChain.Instance != null) angles.x -= RaidChain.Instance.Tension.Value * 8f;
+            Vector3 presentationOffset = transform.InverseTransformVector(player.PresentationOffset);
+            modelRoot.localPosition = Vector3.Lerp(modelRoot.localPosition - previousPresentationOffset,
+                position, 14f * Time.deltaTime) + presentationOffset;
+            previousPresentationOffset = presentationOffset;
             modelRoot.localRotation = Quaternion.Slerp(modelRoot.localRotation,
                 Quaternion.Euler(angles), 14f * Time.deltaTime);
             if (leftArm != null) leftArm.localRotation = Quaternion.Euler(armSwing, 0f, 0f);

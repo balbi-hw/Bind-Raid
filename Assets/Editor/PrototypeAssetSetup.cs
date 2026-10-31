@@ -36,6 +36,8 @@ namespace ChainboundRaid.Editor
                 visual.secondCharacter = b;
                 visual.firstAnimator = a.GetComponent<Animator>();
                 visual.secondAnimator = b.GetComponent<Animator>();
+                visual.firstPresentation = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>("Assets/Settings/PlayerAPresentation.asset");
+                visual.secondPresentation = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>("Assets/Settings/PlayerBPresentation.asset");
                 b.SetActive(false);
                 PrefabUtility.SaveAsPrefabAsset(playerPrefab, "Assets/Prefabs/NetworkRaidPlayer.prefab");
             }
@@ -47,9 +49,9 @@ namespace ChainboundRaid.Editor
             var bossVisual = boss.GetComponent<RaidBossVisual>();
             if (bossVisual == null || bossVisual.bodyRoot == null) throw new InvalidOperationException("Boss visual is missing.");
             if (bossVisual.trunk != null)
-                bossVisual.trunk.transform.localPosition = RaidBoss.TrunkAnchorLocal;
+                bossVisual.trunk.transform.localPosition = boss.GetComponent<RaidBoss>().TrunkAnchorLocal;
             if (bossVisual.frontLeg != null)
-                bossVisual.frontLeg.transform.localPosition = RaidBoss.FrontLegAnchorLocal;
+                bossVisual.frontLeg.transform.localPosition = boss.GetComponent<RaidBoss>().FrontLegAnchorLocal;
             HidePrototypeMeshes(bossVisual.bodyRoot, false);
             var oldElephant = bossVisual.bodyRoot.Find("Temporary Elephant");
             if (oldElephant != null) UnityEngine.Object.DestroyImmediate(oldElephant.gameObject);
@@ -81,6 +83,7 @@ namespace ChainboundRaid.Editor
             bossAnimator.runtimeAnimatorController = Controller(Output + "Mammoth.controller",
                 BossSource, "Idle", bossClips, bossClips);
             bossVisual.bossAnimator = bossAnimator;
+            bossVisual.presentation = AssetDatabase.LoadAssetAtPath<RaidBossPresentation>("Assets/Settings/MammothPresentation.asset");
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
             Debug.Log("TEMP_ASSETS: player variants and mammoth applied.");

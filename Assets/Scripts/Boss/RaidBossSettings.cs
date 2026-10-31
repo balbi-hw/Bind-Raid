@@ -5,6 +5,10 @@ namespace ChainboundRaid
     [CreateAssetMenu(menuName = "Chainbound Raid/Boss Settings")]
     public sealed class RaidBossSettings : ScriptableObject
     {
+        public RaidHitboxLayout hitboxLayout;
+        public RaidBossAnchorLayout anchors;
+        public RaidBossMoveSet moveSet;
+        public RaidArenaSettings arena;
         public float stompTelegraph = 1.2f, stompRadius = 6.5f, stompPower = 30f;
         public float chargeTelegraph = 1.5f, chargeDistance = 10f, chargeWidth = 3.2f;
         public float chargeBodyFront = 4.5f, chargeBodyBack = 3.5f;

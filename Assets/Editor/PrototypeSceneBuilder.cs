@@ -40,8 +40,11 @@ namespace ChainboundRaid.Editor
             Object.DestroyImmediate(playerObject.GetComponent<CapsuleCollider>());
             playerObject.AddComponent<CharacterController>();
             playerObject.AddComponent<NetworkObject>();
-            playerObject.AddComponent<NetworkTransform>();
-            playerObject.AddComponent<RaidPlayer>();
+            var raidPlayer = playerObject.AddComponent<RaidPlayer>();
+            raidPlayer.movementSettings = AssetDatabase.LoadAssetAtPath<RaidMovementSettings>(
+                "Assets/Settings/PlayerMovementSettings.asset");
+            raidPlayer.weaponSettings = AssetDatabase.LoadAssetAtPath<RaidWeaponSettings>(
+                "Assets/Settings/CommonWeaponSettings.asset");
             var playerPrefab = PrefabUtility.SaveAsPrefabAsset(playerObject, "Assets/Prefabs/NetworkRaidPlayer.prefab");
             Object.DestroyImmediate(playerObject);
 
@@ -56,7 +59,7 @@ namespace ChainboundRaid.Editor
             cameraObject.tag = "MainCamera";
             cameraObject.AddComponent<Camera>();
             cameraObject.AddComponent<AudioListener>();
-            cameraObject.AddComponent<PrototypeCamera>();
+            cameraObject.AddComponent<PrototypeCamera>().settings = AssetDatabase.LoadAssetAtPath<RaidCameraSettings>("Assets/Settings/PlayerCameraSettings.asset");
             System.IO.Directory.CreateDirectory("Assets/Scenes");
             EditorSceneManager.SaveScene(scene, "Assets/Scenes/RaidSessionScene.unity");
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene("Assets/Scenes/RaidSessionScene.unity", true) };

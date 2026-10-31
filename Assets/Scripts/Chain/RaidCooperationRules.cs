@@ -44,6 +44,19 @@ namespace ChainboundRaid
             return failure;
         }
 
+        public static string InstructionId(PullFailure reasons)
+        {
+            switch (Primary(reasons))
+            {
+                case PullFailure.NotBraced: return "coop.brace";
+                case PullFailure.NotGrounded: return "coop.ground";
+                case PullFailure.InvalidAngle: return "coop.angle";
+                case PullFailure.NoSharedHold: return "coop.hold";
+                case PullFailure.PartImmune: return "coop.immune";
+                case PullFailure.PlayerDisabled: return "coop.disabled";
+                default: return "coop.anchor";
+            }
+        }
         public static PullFailure Primary(PullFailure reasons)
         {
             PullFailure[] order = { PullFailure.PlayerDisabled, PullFailure.NoAnchor,
