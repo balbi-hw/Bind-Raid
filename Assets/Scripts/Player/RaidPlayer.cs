@@ -125,7 +125,8 @@ namespace ChainboundRaid
             UpdateMovementPresentation();
             if (!IsSpawned || !IsOwner || RaidSession.Instance == null ||
                 (RaidSession.Instance.CurrentState != RaidSessionState.Combat &&
-                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial)) return;
+                 RaidSession.Instance.CurrentState != RaidSessionState.Tutorial &&
+                 RaidSession.Instance.CurrentState != RaidSessionState.Lobby)) return;
 
             Vector2 input = new Vector2((Input.GetKey(right) ? 1 : 0) - (Input.GetKey(left) ? 1 : 0),
                 (Input.GetKey(forward) ? 1 : 0) - (Input.GetKey(back) ? 1 : 0));
@@ -141,7 +142,10 @@ namespace ChainboundRaid
             move = Vector3.ClampMagnitude(move, 1f);
             bool acceptingInput = RaidInputContext.AcceptingInput;
             CaptureMove(acceptingInput ? move : Vector3.zero,
-                acceptingInput && Input.GetKey(sprint), acceptingInput && Input.GetKeyDown(dodge));
+                acceptingInput && Input.GetKey(sprint), acceptingInput &&
+                RaidSession.Instance.CurrentState != RaidSessionState.Lobby && Input.GetKeyDown(dodge));
+
+            if (RaidSession.Instance.CurrentState == RaidSessionState.Lobby) return;
 
             if (acceptingInput && Input.GetKeyDown(lockOn)) CycleLockRpc();
             if (acceptingInput && Input.GetKeyDown(weakAttack)) AttackRpc(false, ++localAttackSequence);

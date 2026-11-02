@@ -97,6 +97,10 @@ namespace ChainboundRaid
 
         void Update()
         {
+            if (manager.IsConnectedClient && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState == RaidSessionState.Lobby && RaidInputContext.AcceptingInput &&
+                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+                ToggleLocalReady(RaidSession.Instance);
             if (manager.IsServer && testRevive && RaidBoss.Instance != null)
                 RaidBoss.Instance.TestPassive = true;
             if (manager.IsServer && testTutorial && !tutorialTestStarted && RaidSession.Instance != null &&
@@ -451,12 +455,9 @@ namespace ChainboundRaid
             if (session.CurrentState == RaidSessionState.Lobby)
             {
                 GUILayout.Label(RaidLanguage.Format("ui.session.046", RaidLanguage.Value(session.FirstReady.Value), RaidLanguage.Value(session.SecondReady.Value)));
+                GUILayout.Label(RaidLanguage.Get("ui.session.065"));
                 if (GUILayout.Button(RaidLanguage.Get("ui.session.045")))
-                {
-                    bool ready = manager.LocalClientId == session.FirstPlayerClientId.Value ?
-                        session.FirstReady.Value : session.SecondReady.Value;
-                    session.SetReadyRpc(!ready);
-                }
+                    ToggleLocalReady(session);
             }
             else if (session.CurrentState == RaidSessionState.Tutorial)
             {
@@ -542,6 +543,14 @@ namespace ChainboundRaid
             }
             GUILayout.EndArea();
             if (session.CurrentState == RaidSessionState.Tutorial) DrawTutorialMarkers(session);
+        }
+
+        void ToggleLocalReady(RaidSession session)
+        {
+            if (manager.LocalClient == null || manager.LocalClient.PlayerObject == null) return;
+            bool ready = manager.LocalClientId == session.FirstPlayerClientId.Value ?
+                session.FirstReady.Value : session.SecondReady.Value;
+            session.SetReadyRpc(!ready);
         }
 
         static string TutorialPullHint(PullFailure failures) => RaidLanguage.Get(RaidCooperationRules.InstructionId(failures));

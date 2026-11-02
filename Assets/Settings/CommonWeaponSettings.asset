@@ -40,23 +40,26 @@ MonoBehaviour:
     nextWeakAttack: 2
     strong: 0
   - id: strong-1
-    windup: 0.35
-    active: 0.18
-    recovery: 0.37
+    windup: 0.625
+    active: 0.167
+    recovery: 0.708
     basePower: 55
     partPower: 45
     staminaCost: 15
     capsuleStart: {x: 0, y: 0, z: 0.5}
     capsuleEnd: {x: 0, y: 0, z: 2.1}
     radius: 0.5
-    movementMultiplier: 0.15
-    turnDegreesPerSecond: 60
-    maxTurnDegrees: 40
-    bufferOpen: 0.7
+    movementMultiplier: 0
+    turnDegreesPerSecond: 30
+    maxTurnDegrees: 20
+    bufferOpen: 1.25
     bufferLifetime: 0.25
-    dodgeCancelOpen: 0.78
+    dodgeCancelOpen: 1.3
     nextWeakAttack: 0
     strong: 1
+    lungeDistance: 1.1
+    lungeStart: 0.33333334
+    lungeEnd: 0.75
   - id: weak-2
     windup: 0.2
     active: 0.12

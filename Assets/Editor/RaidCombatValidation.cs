@@ -62,6 +62,13 @@ namespace ChainboundRaid.Editor
                 resolver.Resolve(attacker.transform, definition, weapon, request, 0, null);
                 Require(receiver.Hits == 3 && receiver.Power == 57f, "Replacement attack data did not reach the receiver.");
                 Debug.Log("COMBAT_VALIDATION: timing, reachable parts, deduplication, facing, obstruction and replacement data passed");
+                var lunge = new RaidAttackDefinition { lungeDistance=1.1f, lungeStart=8f/24f, lungeEnd=18f/24f };
+                attacker.transform.position=Vector3.zero;
+                var controller=attacker.AddComponent<CharacterController>();controller.radius=.2f;controller.height=1.8f;controller.center=Vector3.up*.9f;
+                wall.SetActive(true);wall.transform.position=new Vector3(0,.9f,.8f);wall.GetComponent<BoxCollider>().size=new Vector3(3,3,.2f);Physics.SyncTransforms();
+                for(int tick=0;tick<75;tick++)controller.Move(Vector3.forward*(lunge.LungeDistanceAt((tick+1)*.02f)-lunge.LungeDistanceAt(tick*.02f)));
+                Require(attacker.transform.position.z<.65f,"Lunge passed through a wall");
+                Debug.Log("LUNGE_VALIDATION: controller collision passed");
             }
             finally
             {

@@ -25,13 +25,21 @@ namespace ChainboundRaid
         uint movementRevision;
         float lastInputReceivedAt;
         Vector3 correctionOffset;
+        RaidPresentationMotion presentationMotion;
+        float remotePresentationSpeed;
         bool wasLocalPlaying;
         const int MaxPendingMoves = 128;
 
-        public Vector3 PresentationOffset => correctionOffset;
+        Vector3 SimulationInterpolationOffset => IsServer || IsOwner ?
+            presentationMotion.Offset(transform.position, Time.time) : Vector3.zero;
+        public Vector3 PresentationOffset => correctionOffset + SimulationInterpolationOffset;
+        public Quaternion PresentationRotation => IsServer || IsOwner ?
+            presentationMotion.Rotation(transform.rotation, Time.time) : transform.rotation;
+        public float PresentationSpeed => IsServer || IsOwner ? presentationMotion.Speed : remotePresentationSpeed;
         public RaidAction PresentationAction => IsOwner && !IsServer && snapshotReady ? motorState.Action : Action.Value;
         bool IsPlaying => RaidSession.Instance != null &&
-            (RaidSession.Instance.CurrentState == RaidSessionState.Tutorial ||
+            (RaidSession.Instance.CurrentState == RaidSessionState.Lobby ||
+             RaidSession.Instance.CurrentState == RaidSessionState.Tutorial ||
              RaidSession.Instance.CurrentState == RaidSessionState.Combat);
 
         void InitializeMovement()
@@ -76,6 +84,7 @@ namespace ChainboundRaid
             unacknowledgedMoves.Clear();
             capturedMove = default;
             snapshotReady = false;
+            presentationMotion.Reset(); remotePresentationSpeed = 0f; correctionOffset = Vector3.zero;
             base.OnNetworkDespawn();
         }
 
@@ -138,6 +147,7 @@ namespace ChainboundRaid
             simulationTick++;
             if (!playing)
             {
+                presentationMotion.Reset();
                 serverMove = default;
                 dodgeQueued = false;
                 forcedMoveRemaining = 0f;
@@ -188,6 +198,7 @@ namespace ChainboundRaid
 
         void SimulateMovement(RaidMoveInput input, float dt, bool braced)
         {
+            Quaternion rotationBefore = transform.rotation;
             var attack = PresentedAttack;
             bool attacking = attack != null && (motorState.Action == RaidAction.Attack || motorState.Action == RaidAction.StrongAttack);
             if (attacking && input.Dodge && NetworkManager.ServerTime.Time - AttackPlayback.Value.StartedAt >= attack.dodgeCancelOpen &&
@@ -199,11 +210,15 @@ namespace ChainboundRaid
                 attacking = false;
             }
             if (attacking) { input.Direction *= attack.movementMultiplier; input.Sprint = false; input.Dodge = false; }
+            float attackElapsed = attacking ? Mathf.Max(0f, attack.Duration - motorState.ActionRemaining) : 0f;
             Vector3 displacement = RaidMovementMotor.Step(ref motorState, input, movementSettings,
                 controller.isGrounded, braced, transform.forward, dt);
             Vector3 horizontal = displacement;
             horizontal.y = 0f;
-            if (RaidChain.Instance != null)
+            if (attacking)
+                horizontal += AttackPlayback.Value.Heading * (attack.LungeDistanceAt(attackElapsed + dt) - attack.LungeDistanceAt(attackElapsed));
+            if (RaidChain.Instance != null && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState != RaidSessionState.Lobby)
                 horizontal = RaidChain.Instance.ConstrainMove(this, horizontal);
             if (horizontal.sqrMagnitude > .000001f)
             {
@@ -223,8 +238,13 @@ namespace ChainboundRaid
                 horizontal = forcedMoveDirection * forcedStep;
                 forcedMoveRemaining -= forcedStep;
             }
-            else if (RaidChain.Instance != null) horizontal += RaidChain.Instance.PullDisplacement(this, dt);
+            else if (RaidChain.Instance != null && RaidSession.Instance != null &&
+                RaidSession.Instance.CurrentState != RaidSessionState.Lobby)
+                horizontal += RaidChain.Instance.PullDisplacement(this, dt);
+            Vector3 before = transform.position;
             controller.Move(horizontal + Vector3.up * displacement.y);
+            presentationMotion.Record(before, transform.position, dt, Time.fixedTime);
+            presentationMotion.RecordRotation(rotationBefore, transform.rotation);
         }
 
         void TickStance()
@@ -266,10 +286,14 @@ namespace ChainboundRaid
             snapshotReady = true;
             if (!IsOwner)
             {
+                uint ticks = current.Tick - previous.Tick;
+                Vector3 displacement = current.Position - previous.Position; displacement.y = 0f;
+                if (reset || !previous.Initialized || ticks > 100) remotePresentationSpeed = 0f;
+                else if (ticks > 0) remotePresentationSpeed = displacement.magnitude / (ticks * Time.fixedDeltaTime);
                 if (reset) transform.SetPositionAndRotation(current.Position, current.Rotation);
                 return;
             }
-            Vector3 displayedPosition = transform.position + correctionOffset;
+            Vector3 displayedPosition = transform.position + PresentationOffset;
             if (reset) unacknowledgedMoves.Clear();
             else unacknowledgedMoves.RemoveAll(command => command.Sequence <= current.InputSequence);
             controller.enabled = false;
@@ -283,8 +307,14 @@ namespace ChainboundRaid
             // for moving actors, chain constraints and forced movement.
             foreach (var command in unacknowledgedMoves)
                 SimulateMovement(command, Time.fixedDeltaTime, current.Braced);
-            correctionOffset = reset || Vector3.Distance(displayedPosition, transform.position) > movementSettings.snapDistance ?
-                Vector3.zero : displayedPosition - transform.position;
+            bool snap = reset || Vector3.Distance(displayedPosition, transform.position) > movementSettings.snapDistance;
+            if (snap) presentationMotion.Reset();
+            else
+            {
+                presentationMotion.Rebase(transform.position);
+                presentationMotion.RebaseRotation(transform.rotation);
+            }
+            correctionOffset = snap ? Vector3.zero : displayedPosition - transform.position - SimulationInterpolationOffset;
         }
 
         void UpdateMovementPresentation()
@@ -307,6 +337,7 @@ namespace ChainboundRaid
             serverMove = default;
             dodgeQueued = false;
             movementRevision++;
+            presentationMotion.Reset();
         }
 
         public void TeleportOnServer(Vector3 position)
@@ -316,6 +347,7 @@ namespace ChainboundRaid
             transform.position = position;
             controller.enabled = true;
             motorState.VerticalVelocity = 0f;
+            presentationMotion.Reset(); correctionOffset = Vector3.zero;
             movementRevision++;
             PublishMovement();
         }

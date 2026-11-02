@@ -24,6 +24,14 @@ namespace ChainboundRaid
         public float dodgeCancelOpen = .45f;
         public int nextWeakAttack;
         public bool strong;
+        [Min(0f)] public float lungeDistance;
+        public float lungeStart;
+        public float lungeEnd = .75f;
+        public float LungeDistanceAt(float elapsed)
+        {
+            float t = Mathf.InverseLerp(lungeStart, Mathf.Max(lungeStart + .001f, lungeEnd), elapsed);
+            return Mathf.Max(0f, lungeDistance) * Mathf.SmoothStep(0f, 1f, t);
+        }
         public float Duration => windup + active + recovery;
         public bool IsActive(double elapsed) => elapsed >= windup && elapsed < windup + active;
         public bool CanBuffer(double elapsed) => elapsed >= bufferOpen && elapsed < Duration;

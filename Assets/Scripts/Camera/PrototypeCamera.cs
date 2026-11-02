@@ -15,6 +15,7 @@ namespace ChainboundRaid
         Vector3 smoothedFocus, focusVelocity;
         int lastDamageSequence;
         bool initialized;
+        RaycastHit[] obstructionHits = new RaycastHit[32];
         void Awake()
         {
             config = settings;
@@ -61,9 +62,14 @@ namespace ChainboundRaid
             smoothedFocus = Vector3.SmoothDamp(smoothedFocus, focus, ref focusVelocity, config.focusSmoothSeconds);
             Vector3 back = Quaternion.Euler(pitch, yaw, 0f) * Vector3.back;
             float clearDistance = desiredDistance;
-            foreach (var hit in Physics.SphereCastAll(smoothedFocus, config.collisionRadius, back, desiredDistance,
-                config.collisionLayers, QueryTriggerInteraction.Ignore))
+            int hitCount;
+            // Reuse query storage; expand and retry rather than discard hits in dense scenes.
+            while ((hitCount = Physics.SphereCastNonAlloc(smoothedFocus, config.collisionRadius, back,
+                obstructionHits, desiredDistance, config.collisionLayers, QueryTriggerInteraction.Ignore)) == obstructionHits.Length)
+                System.Array.Resize(ref obstructionHits, obstructionHits.Length * 2);
+            for (int i = 0; i < hitCount; i++)
             {
+                var hit = obstructionHits[i];
                 if (hit.transform == target || hit.transform.IsChildOf(target) || hit.collider.GetComponentInParent<RaidPlayer>() != null) continue;
                 clearDistance = Mathf.Min(clearDistance, Mathf.Max(config.minimumDistance, hit.distance - config.collisionPadding));
             }

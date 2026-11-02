@@ -926,6 +926,11 @@
       "korean": "2인 방이 가득 찼습니다."
     },
     {
+      "id": "ui.session.065",
+      "english": "WASD: move  |  Shift: run  |  Enter: toggle ready",
+      "korean": "WASD: 이동  |  Shift: 달리기  |  Enter: 준비 전환"
+    },
+    {
       "id": "connection.started",
       "english": "The raid has already started.",
       "korean": "레이드가 이미 시작되었습니다."
