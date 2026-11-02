@@ -9,7 +9,7 @@ namespace ChainboundRaid.Editor
 {
     public static class PrototypeAssetSetup
     {
-        const string PlayerSource = "Assets/ThirdParty/KenneyBlockyCharacters/Models/FBX format/";
+        const string WarriorSource = "Assets/ThirdParty/SpartanTripo/spartan-tripo.fbx";
         const string BossSource = "Assets/ThirdParty/MammothPrototype/fantasy-mammoth-rigged.fbx";
         const string BossTexture = "Assets/ThirdParty/MammothPrototype/Textures/fantasy_mammoth_3d_model_basecolor.jpg";
         const string BossNormal = "Assets/ThirdParty/MammothPrototype/Textures/fantasy_mammoth_3d_model_normal.png";
@@ -18,31 +18,11 @@ namespace ChainboundRaid.Editor
         [MenuItem("Chainbound Raid/Apply Temporary Characters")]
         public static void Apply()
         {
+            ApplyWarriorPlayers();
             Directory.CreateDirectory(Output);
             AssetDatabase.Refresh();
             ConfigureMammothScale();
             LoopAnimations(BossSource, "Idle", "Walk");
-            LoopAnimations(PlayerSource + "character-a.fbx", "idle", "walk", "sprint", "holding-both");
-            LoopAnimations(PlayerSource + "character-b.fbx", "idle", "walk", "sprint", "holding-both");
-            var playerPrefab = PrefabUtility.LoadPrefabContents("Assets/Prefabs/NetworkRaidPlayer.prefab");
-            try
-            {
-                var visual = playerPrefab.GetComponent<RaidPlayerVisual>();
-                if (visual == null || visual.modelRoot == null) throw new InvalidOperationException("Player visual is missing.");
-                HidePrototypeMeshes(visual.modelRoot, false);
-                var a = InstallPlayer(visual.modelRoot, "a");
-                var b = InstallPlayer(visual.modelRoot, "b");
-                visual.firstCharacter = a;
-                visual.secondCharacter = b;
-                visual.firstAnimator = a.GetComponent<Animator>();
-                visual.secondAnimator = b.GetComponent<Animator>();
-                visual.firstPresentation = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>("Assets/Settings/PlayerAPresentation.asset");
-                visual.secondPresentation = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>("Assets/Settings/PlayerBPresentation.asset");
-                b.SetActive(false);
-                PrefabUtility.SaveAsPrefabAsset(playerPrefab, "Assets/Prefabs/NetworkRaidPlayer.prefab");
-            }
-            finally { PrefabUtility.UnloadPrefabContents(playerPrefab); }
-
             var scene = EditorSceneManager.OpenScene("Assets/Scenes/RaidSessionScene.unity");
             var boss = GameObject.Find("Boss Training Dummy");
             if (boss == null) throw new InvalidOperationException("Boss is missing.");
@@ -86,13 +66,83 @@ namespace ChainboundRaid.Editor
             bossVisual.presentation = AssetDatabase.LoadAssetAtPath<RaidBossPresentation>("Assets/Settings/MammothPresentation.asset");
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
-            Debug.Log("TEMP_ASSETS: player variants and mammoth applied.");
+            Debug.Log("TEMP_ASSETS: warrior players and mammoth applied.");
+        }
+
+        [MenuItem("Chainbound Raid/Apply Spartan Warrior Players")]
+        public static void ApplyWarriorPlayers()
+        {
+            Directory.CreateDirectory(Output);
+            AssetDatabase.Refresh();
+            ConfigureWarriorScale();
+            ConfigureTripoTextures();
+            LoopAnimations(WarriorSource, "Idle", "Walk", "Sprint", "Brace", "Pull");
+            ConfigureWarriorPresentation("A");
+            ConfigureWarriorPresentation("B");
+            var playerPrefab = PrefabUtility.LoadPrefabContents("Assets/Prefabs/NetworkRaidPlayer.prefab");
+            try
+            {
+                var visual = playerPrefab.GetComponent<RaidPlayerVisual>();
+                if (visual == null || visual.modelRoot == null) throw new InvalidOperationException("Player visual is missing.");
+                HidePrototypeMeshes(visual.modelRoot, false);
+                var a = InstallPlayer(visual.modelRoot, "A");
+                var b = InstallPlayer(visual.modelRoot, "B");
+                visual.firstCharacter = a;
+                visual.secondCharacter = b;
+                visual.firstAnimator = a.GetComponent<Animator>();
+                visual.secondAnimator = b.GetComponent<Animator>();
+                visual.firstPresentation = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>("Assets/Settings/PlayerAPresentation.asset");
+                visual.secondPresentation = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>("Assets/Settings/PlayerBPresentation.asset");
+                b.SetActive(false);
+                PrefabUtility.SaveAsPrefabAsset(playerPrefab, "Assets/Prefabs/NetworkRaidPlayer.prefab");
+            }
+            finally { PrefabUtility.UnloadPrefabContents(playerPrefab); }
+            AssetDatabase.SaveAssets();
+            Debug.Log("WARRIOR_ASSETS: player variants applied.");
         }
 
         public static void ApplyAndBuild()
         {
             Apply();
             PrototypeBuild.BuildWindows();
+        }
+
+        public static void ApplySpartanAndBuild()
+        {
+            ApplyWarriorPlayers();
+            ValidateSpartan();
+            PrototypeBuild.BuildWindows();
+        }
+
+        public static void ValidateSpartan()
+        {
+            var source = AssetDatabase.LoadAssetAtPath<GameObject>(WarriorSource);
+            var instance = UnityEngine.Object.Instantiate(source);
+            try
+            {
+                int clips = 0;
+                foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(WarriorSource))
+                {
+                    if (!(asset is AnimationClip clip) || clip.name.StartsWith("__preview__")) continue;
+                    clips++;
+                    for (int frame = 0; frame <= 4; frame++)
+                    {
+                        clip.SampleAnimation(instance, clip.length * frame / 4f);
+                        foreach (var skin in instance.GetComponentsInChildren<SkinnedMeshRenderer>())
+                        {
+                            var baked = new Mesh();
+                            skin.BakeMesh(baked);
+                            var size = baked.bounds.size;
+                            UnityEngine.Object.DestroyImmediate(baked);
+                            if (float.IsNaN(size.x) || float.IsNaN(size.y) || float.IsNaN(size.z) || size.magnitude > 10f)
+                                throw new InvalidOperationException("Invalid Spartan deformation: " + clip.name);
+                        }
+                    }
+                }
+                if (clips != 14) throw new InvalidOperationException("Expected 14 Spartan clips, got " + clips);
+                Debug.Log("SPARTAN_VALIDATION: 14 clips sampled, skinned bounds finite.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(instance); }
         }
 
         public static void ApplyBossChainAndBuild()
@@ -142,21 +192,104 @@ namespace ChainboundRaid.Editor
 
         static GameObject InstallPlayer(Transform parent, string variant)
         {
-            string source = PlayerSource + "character-" + variant + ".fbx";
-            var character = Install(source, parent, "Temporary Player " + variant.ToUpperInvariant());
-            character.transform.localScale = Vector3.one * .65f;
+            var character = Install(WarriorSource, parent, "Temporary Player " + variant);
+            character.transform.localScale = Vector3.one;
             character.transform.localPosition = new Vector3(0f, -1f, 0f);
             character.transform.localRotation = Quaternion.identity;
-            Texture texture = AssetDatabase.LoadAssetAtPath<Texture>(PlayerSource + "Textures/texture-" + variant + ".png");
-            var material = Material(Output + "Player" + variant.ToUpperInvariant() + ".mat", texture, Color.white);
             foreach (var renderer in character.GetComponentsInChildren<Renderer>(true))
+            {
+                // The source skin uses four influences. Low quality tiers otherwise truncate them.
+                if (renderer is SkinnedMeshRenderer skin) skin.quality = SkinQuality.Bone4;
+                string part = renderer.name;
+                var texture = AssetDatabase.LoadAssetAtPath<Texture>("Assets/ThirdParty/SpartanTripo/Textures/" + part + "_basecolor.png");
+                if (texture == null) throw new InvalidOperationException("Missing Tripo texture: " + part);
+                // Keep skin and armor colors; only the cloth distinguishes the two players.
+                Color tint = variant == "B" && part == "tripo_part_0" ? new Color(.55f, .7f, 1f) : Color.white;
+                var material = Material(Output + "Tripo_" + part + "_" + variant + ".mat", texture, tint);
+                material.shader = Shader.Find("Universal Render Pipeline/Lit");
+                material.SetTextureScale("_BaseMap", Vector2.one);
+                material.SetTextureOffset("_BaseMap", Vector2.zero);
+                string normalPath = "Assets/ThirdParty/SpartanTripo/Textures/" + part + "_normal.png";
+                var normalImporter = AssetImporter.GetAtPath(normalPath) as TextureImporter;
+                if (normalImporter != null && normalImporter.textureType != TextureImporterType.NormalMap)
+                {
+                    normalImporter.textureType = TextureImporterType.NormalMap;
+                    normalImporter.SaveAndReimport();
+                }
+                material.SetTexture("_BumpMap", AssetDatabase.LoadAssetAtPath<Texture>(normalPath));
+                material.DisableKeyword("_NORMALMAP");
+                material.SetFloat("_BumpScale", 0f);
+                material.SetFloat("_Metallic", 0f);
+                material.SetFloat("_Smoothness", .1f);
+                // The supplied GLB renders both sides, including its thin cape/skirt surfaces.
+                material.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Off);
+                EditorUtility.SetDirty(material);
                 renderer.sharedMaterial = material;
+            }
             var animator = EnsureAnimator(character);
-            string[] clips = { "idle", "walk", "sprint", "attack-melee-right", "attack-melee-left",
-                "emote-no", "die", "holding-both" };
-            animator.runtimeAnimatorController = Controller(Output + "Player" + variant.ToUpperInvariant() + ".controller",
-                source, "idle", clips, clips);
+            string[] clips = { "Idle", "Walk", "Sprint", "WeakAttack", "StrongAttack", "Dodge",
+                "HitReaction", "Knockdown", "Incapacitated", "Grabbed", "GetUp", "Brace", "Pull", "Rescue" };
+            animator.runtimeAnimatorController = Controller(Output + "Player" + variant + ".controller",
+                WarriorSource, "Idle", clips, clips);
+            WeaponAssetSetup.AttachDefault(character);
             return character;
+        }
+
+        static void ConfigureWarriorPresentation(string variant)
+        {
+            var profile = AssetDatabase.LoadAssetAtPath<RaidCharacterPresentation>(
+                "Assets/Settings/Player" + variant + "Presentation.asset");
+            if (profile == null) throw new InvalidOperationException("Missing player presentation " + variant);
+            AnimationClip Clip(string name)
+            {
+                var clip = Array.Find(AssetDatabase.LoadAllAssetsAtPath(WarriorSource), asset =>
+                    asset is AnimationClip animation &&
+                    (animation.name == name || animation.name.EndsWith("|" + name, StringComparison.Ordinal)) &&
+                    !animation.name.StartsWith("__preview__", StringComparison.Ordinal)) as AnimationClip;
+                if (clip == null) throw new InvalidOperationException("Missing warrior clip " + name);
+                return clip;
+            }
+            profile.idle = Clip("Idle"); profile.walk = Clip("Walk"); profile.sprint = Clip("Sprint");
+            profile.weakAttack = Clip("WeakAttack"); profile.strongAttack = Clip("StrongAttack");
+            profile.dodge = Clip("Dodge"); profile.hitReaction = Clip("HitReaction");
+            profile.knockdown = Clip("Knockdown"); profile.incapacitated = Clip("Incapacitated");
+            profile.grabbed = Clip("Grabbed"); profile.getUp = Clip("GetUp");
+            profile.brace = Clip("Brace"); profile.pull = Clip("Pull"); profile.rescue = Clip("Rescue");
+            profile.proceduralFallback = false;
+            // Measured backward foot speed during planted portions of the supplied clips.
+            // These describe the motion clips, not the controller's configured top speeds.
+            profile.walkReferenceSpeed = 1.0054f;
+            profile.sprintReferenceSpeed = 3.2441f;
+            EditorUtility.SetDirty(profile);
+        }
+
+        static void ConfigureWarriorScale()
+        {
+            var importer = AssetImporter.GetAtPath(WarriorSource) as ModelImporter;
+            if (importer == null) throw new InvalidOperationException("Warrior importer is missing.");
+            if (importer.useFileScale && Mathf.Approximately(importer.globalScale, 1f) && importer.importNormals == ModelImporterNormals.Calculate) return;
+            importer.useFileScale = true;
+            importer.globalScale = 1f;
+            importer.importNormals = ModelImporterNormals.Calculate;
+            importer.normalSmoothingAngle = 120f;
+            importer.importTangents = ModelImporterTangents.CalculateMikk;
+            importer.SaveAndReimport();
+        }
+
+        static void ConfigureTripoTextures()
+        {
+            foreach (string path in Directory.GetFiles("Assets/ThirdParty/SpartanTripo/Textures", "*.png"))
+            {
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (importer == null) continue;
+                if (!importer.mipmapEnabled && importer.textureCompression == TextureImporterCompression.Uncompressed) continue;
+                // Tripo's dense per-face atlas has no safe mip padding: filtering lower mips
+                // blends unrelated UV islands and makes the surface look torn.
+                importer.mipmapEnabled = false;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.SaveAndReimport();
+            }
         }
 
         static GameObject Install(string source, Transform parent, string name)
@@ -232,6 +365,13 @@ namespace ChainboundRaid.Editor
             bool changed = false;
             foreach (var clip in clips)
             {
+                var sourceClip = Array.Find(importer.defaultClipAnimations, item => item.takeName == clip.takeName);
+                if (sourceClip != null && (clip.firstFrame != sourceClip.firstFrame || clip.lastFrame != sourceClip.lastFrame))
+                {
+                    clip.firstFrame = sourceClip.firstFrame;
+                    clip.lastFrame = sourceClip.lastFrame;
+                    changed = true;
+                }
                 bool loop = Array.Exists(loopNames, name => clip.name == name ||
                     clip.name.EndsWith("|" + name, StringComparison.Ordinal));
                 if (clip.loopTime == loop) continue;

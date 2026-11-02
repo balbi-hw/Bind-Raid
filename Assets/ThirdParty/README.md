@@ -1,7 +1,12 @@
 # Temporary character art
 
-- Players: Kenney Blocky Characters 2.0, CC0. Only variants A and B and their
-  textures are kept from the original download. See
+- Current players: the supplied Spartan Tripo model in `SpartanTripo/`, with
+  separate textures and a rigged FBX. See `docs/TRIPO_REPLACEMENT_REVIEW.md`.
+  Cloth tint distinguishes the two player slots.
+- Earlier prototype: the project owner-created ancient warrior in
+  `AncientWarriorPrototype/`. See its README for source and permission details.
+- Previous player placeholders: Kenney Blocky Characters 2.0, CC0. Their
+  imported variants remain in the project as fallback. See
   `KenneyBlockyCharacters/License.txt` and
   https://opengameart.org/content/blocky-characters.
 - Current boss: project owner-created `fantasy mammoth 3d model.glb`, converted to a

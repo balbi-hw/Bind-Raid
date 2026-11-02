@@ -12,21 +12,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1a58911737b444d2a1484c8a2bd8752a, type: 3}
   m_Name: PlayerBPresentation
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidCharacterPresentation
-  idle: {fileID: -5252816984213320552, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  walk: {fileID: -3419257869308726280, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  sprint: {fileID: 6861445081996442198, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  weakAttack: {fileID: -2493277499941417448, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  strongAttack: {fileID: -5461418893546194683, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  incapacitated: {fileID: -5455075036266976943, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  pull: {fileID: 5706841702965956000, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  brace: {fileID: 5706841702965956000, guid: 1deb10a4df7098b45bb02bf088cbdea7, type: 3}
-  dodge: {fileID: 0}
-  hitReaction: {fileID: 0}
-  knockdown: {fileID: 0}
-  grabbed: {fileID: 0}
-  getUp: {fileID: 0}
-  rescue: {fileID: 0}
+  idle: {fileID: -3100369314251171874, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  walk: {fileID: 2667949614841947897, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  sprint: {fileID: -8086047558812005389, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  weakAttack: {fileID: -2876679632712158251, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  strongAttack: {fileID: 4272045375692200577, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  dodge: {fileID: -7523799387860143440, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  hitReaction: {fileID: 6518202159994717299, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  knockdown: {fileID: 420712891937485566, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  incapacitated: {fileID: 2203171343148070763, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  grabbed: {fileID: -1893445038571968022, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  getUp: {fileID: 3989299462627358070, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  brace: {fileID: -1983110216244609058, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  pull: {fileID: 4520100277071997784, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
+  rescue: {fileID: 2488825795763882519, guid: dc81fd7642c283c4b89b1d34796ddbf1, type: 3}
   transitionSeconds: 0.12
-  walkReferenceSpeed: 5
-  sprintReferenceSpeed: 7
-  proceduralFallback: 1
+  walkReferenceSpeed: 1.0054
+  sprintReferenceSpeed: 3.2441
+  proceduralFallback: 0

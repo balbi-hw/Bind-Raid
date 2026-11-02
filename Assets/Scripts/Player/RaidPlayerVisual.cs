@@ -19,8 +19,8 @@ namespace ChainboundRaid
 
         RaidPlayer player;
         MaterialPropertyBlock colorBlock;
-        Vector3 previousPosition;
         Vector3 previousPresentationOffset;
+        Quaternion proceduralRotation = Quaternion.identity;
         RaidAction previousAction;
         float actionAge;
         float displayedSpeed;
@@ -30,6 +30,7 @@ namespace ChainboundRaid
         public RaidCharacterPresentation firstPresentation;
         public RaidCharacterPresentation secondPresentation;
         RaidAnimationDriver animationDriver;
+        RaidWeaponAttachment weaponAttachment;
         RaidCharacterPresentation activePresentation;
         float getUpRemaining;
 
@@ -39,7 +40,6 @@ namespace ChainboundRaid
         {
             player = GetComponent<RaidPlayer>();
             colorBlock = new MaterialPropertyBlock();
-            previousPosition = transform.position;
             if (statusRing != null)
             {
                 statusRing.useWorldSpace = false;
@@ -70,10 +70,9 @@ namespace ChainboundRaid
             }
             else actionAge += Time.deltaTime;
 
-            Vector3 displayedPosition = transform.position + player.PresentationOffset;
-            float speed = (displayedPosition - previousPosition).magnitude / Mathf.Max(Time.deltaTime, 0.001f);
-            previousPosition = displayedPosition;
-            displayedSpeed = Mathf.Lerp(displayedSpeed, Mathf.Min(speed, 8f), 10f * Time.deltaTime);
+            // Measure actual horizontal movement per simulation step, not 0/jump render-frame deltas.
+            float speed = player.PresentationSpeed;
+            displayedSpeed = Mathf.Lerp(displayedSpeed, speed, 1f - Mathf.Exp(-12f * Time.deltaTime));
             var session = RaidSession.Instance;
             int character = session != null && session.FirstPlayerClientId.Value == player.OwnerClientId ? 0 : 1;
             if (visibleCharacter != character)
@@ -81,6 +80,7 @@ namespace ChainboundRaid
                 if (firstCharacter != null) firstCharacter.SetActive(character == 0);
                 if (secondCharacter != null) secondCharacter.SetActive(character == 1);
                 visibleCharacter = character;
+                weaponAttachment = (character == 0 ? firstCharacter : secondCharacter)?.GetComponent<RaidWeaponAttachment>();
                 animationDriver?.Dispose();
                 activePresentation = character == 0 ? firstPresentation : secondPresentation;
                 var activeAnimator = character == 0 ? firstAnimator : secondAnimator;
@@ -94,6 +94,12 @@ namespace ChainboundRaid
             bool timedAttack = player.PresentedAttack != null && (action == RaidAction.Attack || action == RaidAction.StrongAttack);
             animationDriver?.Evaluate(displayedSpeed, clip, player.AttackPlayback.Value.Instance,
                 player.AttackNormalizedTime, timedAttack, Time.deltaTime);
+            if (animationDriver != null)
+            {
+                weaponAttachment?.ApplyCarryPose(displayedSpeed, action == RaidAction.Free && clip == null);
+                weaponAttachment?.ApplyHeavyGrip(player.AttackNormalizedTime, action == RaidAction.StrongAttack);
+                weaponAttachment?.ApplyGripPose();
+            }
             float moveWeight = action == RaidAction.Free ? Mathf.Clamp01(displayedSpeed / 4f) : 0f;
             float walkCycle = Time.time * (6f + displayedSpeed);
             Vector3 position = Vector3.up * (0.025f * Mathf.Sin(Time.time * 2f) +
@@ -148,12 +154,19 @@ namespace ChainboundRaid
             }
 
             if (action == RaidAction.Free && RaidChain.Instance != null) angles.x -= RaidChain.Instance.Tension.Value * 8f;
+            if (activePresentation != null && !activePresentation.proceduralFallback)
+            {
+                // Authored clips already contain weight shifts and vertical motion.
+                position = Vector3.zero;
+                angles = Vector3.zero;
+            }
             Vector3 presentationOffset = transform.InverseTransformVector(player.PresentationOffset);
             modelRoot.localPosition = Vector3.Lerp(modelRoot.localPosition - previousPresentationOffset,
                 position, 14f * Time.deltaTime) + presentationOffset;
             previousPresentationOffset = presentationOffset;
-            modelRoot.localRotation = Quaternion.Slerp(modelRoot.localRotation,
-                Quaternion.Euler(angles), 14f * Time.deltaTime);
+            proceduralRotation = Quaternion.Slerp(proceduralRotation,
+                Quaternion.Euler(angles), 1f - Mathf.Exp(-14f * Time.deltaTime));
+            modelRoot.rotation = player.PresentationRotation * proceduralRotation;
             if (leftArm != null) leftArm.localRotation = Quaternion.Euler(armSwing, 0f, 0f);
             if (rightArm != null) rightArm.localRotation = Quaternion.Euler(-armSwing, 0f, 0f);
             if (weapon != null) weapon.localRotation = Quaternion.Euler(0f, 0f, weaponSwing);

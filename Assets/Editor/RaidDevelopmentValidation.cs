@@ -128,6 +128,24 @@ namespace ChainboundRaid.Editor
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/NetworkRaidPlayer.prefab");
             Check(prefab != null && prefab.GetComponent<Unity.Netcode.Components.NetworkTransform>() == null, "Duplicate player transform writer.");
             Check(prefab.GetComponent<RaidPlayerVisual>().firstPresentation != null, "Presentation profile not assigned.");
+            var visual = prefab.GetComponent<RaidPlayerVisual>();
+            Check(visual.firstCharacter != null && visual.secondCharacter != null &&
+                visual.firstAnimator != null && visual.secondAnimator != null,
+                "Warrior variants or animators missing from player prefab.");
+            foreach (var character in new[] { visual.firstCharacter, visual.secondCharacter })
+            {
+                var skins = character.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                Check(skins.Length > 0, "Warrior mesh missing: " + character.name);
+                Bounds bounds = skins[0].bounds;
+                foreach (var skin in skins)
+                {
+                    Check(skin.sharedMesh != null && skin.sharedMaterial != null,
+                        "Warrior mesh or material missing: " + character.name);
+                    bounds.Encapsulate(skin.bounds);
+                }
+                Check(bounds.size.y > 1.6f && bounds.size.y < 2.1f,
+                    "Warrior visible height is outside player scale: " + bounds.size.y);
+            }
             var boss = AssetDatabase.LoadAssetAtPath<RaidBossSettings>("Assets/Settings/BossSettings.asset");
             Check(boss != null && boss.anchors != null && boss.moveSet != null && boss.arena != null, "Boss profile references missing.");
         }

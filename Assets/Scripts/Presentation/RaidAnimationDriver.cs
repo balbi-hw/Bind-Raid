@@ -16,6 +16,7 @@ namespace ChainboundRaid
         float transition;
         uint attackInstance;
         bool initialized;
+        double locomotionPhase;
         public RaidAnimationDriver(Animator animator, RaidCharacterPresentation settings)
         {
             profile = settings;
@@ -46,8 +47,14 @@ namespace ChainboundRaid
             locomotion.SetInputWeight(0, 1f - moving);
             locomotion.SetInputWeight(1, moving * (1f - running));
             locomotion.SetInputWeight(2, moving * running);
-            if (walk.IsValid()) walk.SetSpeed(Mathf.Clamp(speed / walkSpeed, .25f, 1.5f));
-            if (sprint.IsValid()) sprint.SetSpeed(Mathf.Clamp(speed / runSpeed, .25f, 1.5f));
+            float walkLength = profile.walk != null ? profile.walk.length : 1f;
+            float runLength = profile.sprint != null ? profile.sprint.length : walkLength;
+            float cyclesPerSecond = Mathf.Lerp(speed / Mathf.Max(.01f, walkSpeed * walkLength),
+                speed / Mathf.Max(.01f, runSpeed * runLength), running);
+            locomotionPhase = (locomotionPhase + Mathf.Max(0f, dt) * cyclesPerSecond) % 1.0;
+            // Share gait phase across blends; preserve phase when speed changes.
+            if (walk.IsValid()) { walk.SetSpeed(0); walk.SetTime(locomotionPhase * walkLength); }
+            if (sprint.IsValid()) { sprint.SetSpeed(0); sprint.SetTime(locomotionPhase * runLength); }
             if (!initialized || clip != selected || (timedAttack && instance != attackInstance))
             {
                 initialized = true;
@@ -62,7 +69,8 @@ namespace ChainboundRaid
                 selected = clip; attackInstance = instance; transition = 0f;
                 current = Create(clip); Connect(current, mixer, 1);
             }
-            transition = Mathf.Min(1f, transition + dt / Mathf.Max(.01f, profile.transitionSeconds));
+            float blendSeconds = selected == profile.dodge && selected != null ? .025f : profile.transitionSeconds;
+            transition = Mathf.Min(1f, transition + dt / Mathf.Max(.01f, blendSeconds));
             float incoming = Mathf.SmoothStep(0f, 1f, transition);
             float oldWeight = previous.IsValid() ? 1f - incoming : 0f;
             float newWeight = current.IsValid() ? incoming : 0f;

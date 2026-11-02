@@ -43,7 +43,9 @@ namespace ChainboundRaid.Editor
             if (report.summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException($"Windows build failed: {report.summary.result}");
             System.IO.File.WriteAllText(outputDirectory + "/THIRD_PARTY_NOTICES.txt",
-                "Player models: Kenney Blocky Characters 2.0, CC0 1.0. https://kenney.nl/assets/blocky-characters\n" +
+                "Warrior player model: original work by the project owner, included with permission for tester distribution.\n" +
+                "No separate permission to reuse this model is granted.\n" +
+                "Kenney player placeholders: Kenney Blocky Characters 2.0, CC0 1.0. https://kenney.nl/assets/blocky-characters\n" +
                 "Elephant placeholder: syncopika, CC0 1.0. https://opengameart.org/content/low-poly-elephant-model\n" +
                 "Chain 3D model by Kutejnikov (2020), modified for this game.\n" +
                 "Source: https://opengameart.org/content/chain\n" +
