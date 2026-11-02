@@ -150,20 +150,21 @@ namespace ChainboundRaid
             if (acceptingInput && Input.GetKeyDown(lockOn)) CycleLockRpc();
             if (acceptingInput && Input.GetKeyDown(weakAttack)) AttackRpc(false, ++localAttackSequence);
             if (acceptingInput && Input.GetKeyDown(strongAttack)) AttackRpc(true, ++localAttackSequence);
-            if (acceptingInput && Input.GetKeyDown(stanceToggle)) RequestStanceRpc();
-            bool pulling = acceptingInput && Input.GetKey(pull);
+            bool cooperative = !RaidSession.Instance.SoloDevelopment;
+            if (cooperative && acceptingInput && Input.GetKeyDown(stanceToggle)) RequestStanceRpc();
+            bool pulling = cooperative && acceptingInput && Input.GetKey(pull);
             if (pulling != lastSentPullHeld)
             {
                 lastSentPullHeld = pulling;
                 SetPullIntentRpc(pulling, NetworkManager.ServerTime.Time);
             }
-            bool struggling = acceptingInput && Input.GetKey(struggle);
+            bool struggling = cooperative && acceptingInput && Input.GetKey(struggle);
             if (struggling != lastSentStruggleHeld)
             {
                 lastSentStruggleHeld = struggling;
                 SetStruggleIntentRpc(struggling);
             }
-            bool held = testReviveHold || (acceptingInput && Input.GetKey(revive));
+            bool held = testReviveHold || (cooperative && acceptingInput && Input.GetKey(revive));
             if (held != lastSentReviveHeld) { lastSentReviveHeld = held; SetReviveIntentRpc(held); }
         }
 

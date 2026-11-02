@@ -57,6 +57,8 @@ namespace ChainboundRaid
         public int SnatchAvoidCount { get; private set; }
         public int SpinRescueCount { get; private set; }
         public bool TestPassive { get; set; }
+        IRaidPlayMode playMode = new MultiplayerRaidMode();
+        public void Configure(IRaidPlayMode mode) { playMode = mode ?? new MultiplayerRaidMode(); }
         Vector3 initialPosition;
         Quaternion initialRotation;
 
@@ -165,7 +167,8 @@ namespace ChainboundRaid
                 controlActive = grabbedPlayer != null || (chain != null && chain.ActiveAnchor.Value == RaidChainAnchor.Trunk),
                 controlReadyAt = controlReadyAt, previous = previousAttack
             };
-            return RaidBossDecision.Select(settings.moveSet, context, moveReadyAt, Random.value);
+            return RaidBossDecision.Select(settings.moveSet, context, moveReadyAt, Random.value,
+                playMode.AllowsBossAttack);
         }
 
         void ApproachTarget()

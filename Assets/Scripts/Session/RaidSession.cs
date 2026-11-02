@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ChainboundRaid
 {
     public enum RaidSessionState { Lobby, Tutorial, Combat, Result, Disconnected }
-    public enum RaidResultReason { None, BossDefeated, BothPlayersDown, TimeLimit, ConnectionLost }
+    public enum RaidResultReason { None, BossDefeated, BothPlayersDown, TimeLimit, ConnectionLost, SoloPlayerDown }
     public enum RaidPing { Approach, Pull, Release, Rescue }
 
     [RequireComponent(typeof(NetworkObject))]
@@ -43,6 +43,9 @@ namespace ChainboundRaid
         int tutorialBaseline;
         int tutorialStaggerBaseline;
         bool tutorialAttackStarted;
+        IRaidPlayMode playMode = new MultiplayerRaidMode();
+        public void Configure(IRaidPlayMode mode) { playMode = mode ?? new MultiplayerRaidMode(); }
+        public bool SoloDevelopment => playMode.RequiredPlayers == 1;
 
         void Awake() { Instance = this; }
         public override void OnDestroy()
@@ -87,8 +90,8 @@ namespace ChainboundRaid
             // The boss win condition wins ties on the same authoritative update.
             if (RaidBoss.Instance != null && RaidBoss.Instance.Health.Value <= 0f)
             { Finish(RaidResultReason.BossDefeated); return; }
-            if (Players.Count == 2 && Players[0].IsDown && Players[1].IsDown)
-            { Finish(RaidResultReason.BothPlayersDown); return; }
+            if (playMode.IsPartyDefeated(Players))
+            { Finish(SoloDevelopment ? RaidResultReason.SoloPlayerDown : RaidResultReason.BothPlayersDown); return; }
             if (CombatSeconds.Value >= maxCombatSeconds)
             { Finish(RaidResultReason.TimeLimit); return; }
 
@@ -221,11 +224,20 @@ namespace ChainboundRaid
             int slot = SlotOf(rpcParams.Receive.SenderClientId);
             if (slot == 0) FirstReady.Value = ready;
             if (slot == 1) SecondReady.Value = ready;
-            if (Players.Count == 2 && FirstReady.Value && SecondReady.Value)
+            if (Players.Count == playMode.RequiredPlayers && FirstReady.Value &&
+                (!playMode.UsesCooperativeTutorial || SecondReady.Value))
             {
-                TutorialStep.Value = 0; TutorialProgress.Value = 0;
-                tutorialFlags = 0; tutorialAttackStarted = false;
-                SetStatus(RaidSessionState.Tutorial, RaidResultReason.None);
+                if (playMode.UsesCooperativeTutorial)
+                {
+                    TutorialStep.Value = 0; TutorialProgress.Value = 0;
+                    tutorialFlags = 0; tutorialAttackStarted = false;
+                    SetStatus(RaidSessionState.Tutorial, RaidResultReason.None);
+                }
+                else
+                {
+                    combatStartTime = Time.time;
+                    SetStatus(RaidSessionState.Combat, RaidResultReason.None);
+                }
             }
         }
 

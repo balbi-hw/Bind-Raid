@@ -33,10 +33,10 @@ namespace ChainboundRaid
         {
             var session = RaidSession.Instance;
             if (session == null || !session.IsSpawned || session.CurrentState != RaidSessionState.Combat) return;
-            if (RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha1)) session.SendPingRpc(RaidPing.Approach);
-            if (RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha2)) session.SendPingRpc(RaidPing.Pull);
-            if (RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha3)) session.SendPingRpc(RaidPing.Release);
-            if (RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha4)) session.SendPingRpc(RaidPing.Rescue);
+            if (!session.SoloDevelopment && RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha1)) session.SendPingRpc(RaidPing.Approach);
+            if (!session.SoloDevelopment && RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha2)) session.SendPingRpc(RaidPing.Pull);
+            if (!session.SoloDevelopment && RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha3)) session.SendPingRpc(RaidPing.Release);
+            if (!session.SoloDevelopment && RaidInputContext.AcceptingInput && Input.GetKeyDown(KeyCode.Alpha4)) session.SendPingRpc(RaidPing.Rescue);
             if (session.PingSequence.Value != lastPingSequence)
             {
                 lastPingSequence = session.PingSequence.Value;
@@ -84,10 +84,10 @@ namespace ChainboundRaid
                 Bar(x + 12f, ref y,RaidLanguage.Get("ui.hud.012"), boss.FrontLegDurability.Value, boss.partMaxDurability, Color.yellow);
             }
             var chain = RaidChain.Instance;
-            if (chain != null)
+            if (!session.SoloDevelopment && chain != null)
                 Label(x + 12f, ref y,RaidLanguage.Format("ui.hud.011", RaidLanguage.Value(chain.PathLength.Value.ToString("F1")), RaidLanguage.Value(chain.DisplayState.Value), RaidLanguage.Value(chain.ActiveAnchor.Value)), Color.cyan);
             var cooperation = RaidCooperation.Instance;
-            if (cooperation != null)
+            if (!session.SoloDevelopment && cooperation != null)
             {
                 float max = cooperation.settings != null ? cooperation.settings.gaugeMax : 100f;
                 Bar(x + 12f, ref y,RaidLanguage.Get("ui.hud.010"), cooperation.Gauge.Value, max, new Color(.35f, .9f, 1f));
@@ -105,10 +105,11 @@ namespace ChainboundRaid
             if (session.PingSequence.Value > 0 && manager.ServerTime.Time - session.PingServerTime.Value <
                 session.pingDisplaySeconds)
                 Label(x + 12f, ref y,RaidLanguage.Format("ui.hud.007", RaidLanguage.Value(session.PingKind.Value), RaidLanguage.Value(session.PingSender.Value), RaidLanguage.Value(session.PingServerTick.Value)), Color.green, true);
-            if (local.IsDown)
+            if (!session.SoloDevelopment && local.IsDown)
                 Label(x + 12f, ref y,RaidLanguage.Format("ui.hud.006", RaidLanguage.Value(local.ReviveProgress.Value.ToString("F1")), RaidLanguage.Value(local.RequiredReviveSeconds.ToString("F0"))), Color.red, true);
 
-            GUI.Box(new Rect(12f, Screen.height - 46f, Mathf.Min(565f, Screen.width - 24f), 34f), RaidLanguage.Get("ui.hud.005"));
+            GUI.Box(new Rect(12f, Screen.height - 46f, Mathf.Min(565f, Screen.width - 24f), 34f),
+                RaidLanguage.Get(session.SoloDevelopment ? "ui.session.068" : "ui.hud.005"));
         }
 
         string ActiveHint(RaidBoss boss, RaidPlayer local)

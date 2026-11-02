@@ -38066,6 +38066,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6626cc43a6ab0654fb2ed2af6df5a692, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidBootstrap
+  playModeKind: 1
 --- !u!114 &1713518682
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -476,6 +476,11 @@
       "korean": "두 명 전투 불능"
     },
     {
+      "id": "value.solo.down",
+      "english": "SoloPlayerDown",
+      "korean": "플레이어 전투 불능"
+    },
+    {
       "id": "value.005",
       "english": "ConnectionLost",
       "korean": "연결 끊김"
@@ -929,6 +934,21 @@
       "id": "ui.session.065",
       "english": "WASD: move  |  Shift: run  |  Enter: toggle ready",
       "korean": "WASD: 이동  |  Shift: 달리기  |  Enter: 준비 전환"
+    },
+    {
+      "id": "ui.session.066",
+      "english": "Solo development: local play, no cooperative mechanics",
+      "korean": "싱글 개발 모드: 로컬 플레이, 협동 기믹 제외"
+    },
+    {
+      "id": "ui.session.067",
+      "english": "Ready: {0}",
+      "korean": "준비: {0}"
+    },
+    {
+      "id": "ui.session.068",
+      "english": "WASD move · Shift sprint · Mouse aim · Click attack · Space dodge",
+      "korean": "WASD 이동 · Shift 달리기 · 마우스 조준 · 클릭 공격 · Space 회피"
     },
     {
       "id": "connection.started",

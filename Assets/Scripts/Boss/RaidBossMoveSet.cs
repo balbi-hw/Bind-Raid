@@ -41,18 +41,22 @@ namespace ChainboundRaid
             return Mathf.Max(0f, context.phase <= 1 ? move.phaseOneWeight : move.phaseTwoWeight);
         }
         public static BossAttack Select(RaidBossMoveSet settings, RaidBossDecisionContext context,
-            IReadOnlyDictionary<BossAttack, float> readyTimes, float fraction)
+            IReadOnlyDictionary<BossAttack, float> readyTimes, float fraction,
+            System.Predicate<BossAttack> allowed = null)
         {
             float total = 0f;
             foreach (var move in settings.moves)
-            { readyTimes.TryGetValue(move.attack, out float ready); total += Weight(move, context, ready); }
+            {
+                readyTimes.TryGetValue(move.attack, out float ready);
+                if (allowed == null || allowed(move.attack)) total += Weight(move, context, ready);
+            }
             if (total <= 0f) return BossAttack.None;
             float choice = Mathf.Clamp01(fraction) * total;
             BossAttack fallback = BossAttack.None;
             foreach (var move in settings.moves)
             {
                 readyTimes.TryGetValue(move.attack, out float ready);
-                float weight = Weight(move, context, ready);
+                float weight = allowed == null || allowed(move.attack) ? Weight(move, context, ready) : 0f;
                 if (weight <= 0f) continue;
                 fallback = move.attack; choice -= weight;
                 if (choice < 0f) return move.attack;

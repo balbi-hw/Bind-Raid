@@ -10,6 +10,8 @@ namespace ChainboundRaid
     [RequireComponent(typeof(NetworkManager), typeof(UnityTransport))]
     public sealed class RaidBootstrap : MonoBehaviour
     {
+        public RaidPlayModeKind playModeKind = RaidPlayModeKind.Multiplayer;
+        IRaidPlayMode playMode;
         NetworkManager manager;
         UnityTransport transport;
         string address = "127.0.0.1";
@@ -71,6 +73,19 @@ namespace ChainboundRaid
 #if UNITY_SERVER
             dedicatedServer = true;
 #endif
+            bool explicitClient = Array.IndexOf(args, "-raidClient") >= 0;
+            var selectedMode = dedicatedServer || explicitClient ||
+                Array.IndexOf(args, "-raidMode=multiplayer") >= 0 ?
+                RaidPlayModeKind.Multiplayer : playModeKind;
+            if (!dedicatedServer && !explicitClient && Array.IndexOf(args, "-raidMode=solo") >= 0)
+                selectedMode = RaidPlayModeKind.SoloDevelopment;
+            playMode = RaidPlayModeFactory.Create(selectedMode);
+            var session = FindFirstObjectByType<RaidSession>();
+            var boss = FindFirstObjectByType<RaidBoss>();
+            if (session == null || boss == null) throw new InvalidOperationException("Raid scene is missing session or boss.");
+            session.Configure(playMode);
+            boss.Configure(playMode);
+            Debug.Log("RAID_MODE: " + selectedMode);
             autoFlow = Array.IndexOf(args, "-raidAutoFlow") >= 0;
             autoReady = Array.IndexOf(args, "-raidAutoReady") >= 0;
             testTutorial = Array.IndexOf(args, "-raidTestTutorial") >= 0;
@@ -83,12 +98,17 @@ namespace ChainboundRaid
             testBoss = Array.IndexOf(args, "-raidTestBoss") >= 0;
             testPing = Array.IndexOf(args, "-raidTestPing") >= 0;
             autoReturn = Array.IndexOf(args, "-raidAutoReturn") >= 0;
-            if (dedicatedServer)
+            if (selectedMode == RaidPlayModeKind.SoloDevelopment)
+            {
+                transport.SetConnectionData("127.0.0.1", 7777, "127.0.0.1");
+                Debug.Log("RAID_SOLO: host started=" + manager.StartHost());
+            }
+            else if (dedicatedServer)
             {
                 transport.SetConnectionData("127.0.0.1", 7777, "0.0.0.0");
                 Debug.Log("RAID_TEST: dedicated server started=" + manager.StartServer());
             }
-            else if (Array.IndexOf(args, "-raidClient") >= 0)
+            else if (explicitClient)
             {
                 transport.SetConnectionData("127.0.0.1", 7777);
                 Debug.Log("RAID_TEST: client started=" + manager.StartClient());
@@ -398,7 +418,7 @@ namespace ChainboundRaid
         void Approve(NetworkManager.ConnectionApprovalRequest request,
             NetworkManager.ConnectionApprovalResponse response)
         {
-            bool room = manager.ConnectedClientsIds.Count < 2;
+            bool room = manager.ConnectedClientsIds.Count < (playMode?.RequiredPlayers ?? 2);
             bool open = RaidSession.Instance == null || RaidSession.Instance.CurrentState == RaidSessionState.Lobby;
             response.Approved = room && open;
             response.CreatePlayerObject = response.Approved;
@@ -451,10 +471,15 @@ namespace ChainboundRaid
             if (session == null || !session.IsSpawned)
             { GUILayout.Label(RaidLanguage.Get("ui.session.049")); GUILayout.EndArea(); return; }
             GUILayout.Label(RaidLanguage.Format("ui.session.048", RaidLanguage.Value(manager.ConnectedClientsIds.Count)));
+            if (playMode != null && playMode.RequiredPlayers == 1)
+                GUILayout.Label(RaidLanguage.Get("ui.session.066"));
             GUILayout.Label(RaidLanguage.Format("ui.session.047", RaidLanguage.Value(session.CurrentState)));
             if (session.CurrentState == RaidSessionState.Lobby)
             {
-                GUILayout.Label(RaidLanguage.Format("ui.session.046", RaidLanguage.Value(session.FirstReady.Value), RaidLanguage.Value(session.SecondReady.Value)));
+                if (session.SoloDevelopment)
+                    GUILayout.Label(RaidLanguage.Format("ui.session.067", RaidLanguage.Value(session.FirstReady.Value)));
+                else
+                    GUILayout.Label(RaidLanguage.Format("ui.session.046", RaidLanguage.Value(session.FirstReady.Value), RaidLanguage.Value(session.SecondReady.Value)));
                 GUILayout.Label(RaidLanguage.Get("ui.session.065"));
                 if (GUILayout.Button(RaidLanguage.Get("ui.session.045")))
                     ToggleLocalReady(session);
@@ -516,8 +541,9 @@ namespace ChainboundRaid
                 {
                     GUILayout.Label(RaidLanguage.Format("ui.session.018", RaidLanguage.Value(local.Health.Value.ToString("F0")), RaidLanguage.Value(local.Stamina.Value.ToString("F0"))));
                     GUILayout.Label(RaidLanguage.Format("ui.session.017", RaidLanguage.Value(local.Action.Value), (local.LockEnabled.Value  ? RaidLanguage.Value(local.LockedPart.Value.ToString()) : RaidLanguage.Get("ui.session.016"))));
-                    GUILayout.Label(RaidLanguage.Format("ui.session.015", RaidLanguage.Value(local.Stance.Value), (local.StanceChanging.Value  ? RaidLanguage.Get("ui.session.012") : ""), (local.PullHeld.Value  ? RaidLanguage.Get("ui.session.013") : RaidLanguage.Get("ui.session.014"))));
-                    if (local.IsDown)
+                    if (!session.SoloDevelopment)
+                        GUILayout.Label(RaidLanguage.Format("ui.session.015", RaidLanguage.Value(local.Stance.Value), (local.StanceChanging.Value  ? RaidLanguage.Get("ui.session.012") : ""), (local.PullHeld.Value  ? RaidLanguage.Get("ui.session.013") : RaidLanguage.Get("ui.session.014"))));
+                    if (!session.SoloDevelopment && local.IsDown)
                         GUILayout.Label(RaidLanguage.Format("ui.session.011", RaidLanguage.Value(local.ReviveProgress.Value.ToString("F1")), RaidLanguage.Value(local.RequiredReviveSeconds.ToString("F0"))));
                 }
                 foreach (var player in FindObjectsByType<RaidPlayer>(FindObjectsSortMode.None))
@@ -525,13 +551,16 @@ namespace ChainboundRaid
                     if (local == null || player == local || !player.IsSpawned) continue;
                     GUILayout.Label(RaidLanguage.Format("ui.session.010", RaidLanguage.Value(player.Health.Value.ToString("F0")), RaidLanguage.Value(Vector3.Distance(local.transform.position, player.transform.position).ToString("F1"))));
                 }
-                if (RaidChain.Instance != null && RaidChain.Instance.IsSpawned)
+                if (!session.SoloDevelopment && RaidChain.Instance != null && RaidChain.Instance.IsSpawned)
                     GUILayout.Label(RaidLanguage.Format("ui.session.009", RaidLanguage.Value(RaidChain.Instance.PathLength.Value.ToString("F1")), RaidLanguage.Value(RaidChain.Instance.DistanceBand.Value), RaidLanguage.Value(RaidChain.Instance.DisplayState.Value), RaidLanguage.Value(RaidChain.Instance.ActiveAnchor.Value)));
-                if (RaidCooperation.Instance != null && RaidCooperation.Instance.IsSpawned)
+                if (!session.SoloDevelopment && RaidCooperation.Instance != null && RaidCooperation.Instance.IsSpawned)
                     GUILayout.Label(RaidLanguage.Format("ui.session.008", RaidLanguage.Value(RaidCooperation.Instance.Gauge.Value.ToString("F0")), RaidLanguage.Value(RaidCooperationRules.Primary(
                             RaidCooperation.Instance.FailureReasons.Value))));
-                GUILayout.Label(RaidLanguage.Get("ui.session.007"));
-                GUILayout.Label(RaidLanguage.Get("ui.session.006"));
+                if (!session.SoloDevelopment)
+                {
+                    GUILayout.Label(RaidLanguage.Get("ui.session.007"));
+                    GUILayout.Label(RaidLanguage.Get("ui.session.006"));
+                }
                 GUILayout.Label(RaidLanguage.Get("ui.session.005"));
             }
             else if (session.CurrentState == RaidSessionState.Result)
