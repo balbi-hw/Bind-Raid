@@ -78,14 +78,15 @@ namespace ChainboundRaid.Editor
                     }
                     Require(Mathf.Abs(travel - settings.dodgeDistance) < .002f,
                         "Dodge distance depends on simulation rate: " + rate + " travel=" + travel);
-                    Require(peakSpeed <= settings.dodgeSpeed + .02f && peakSpeed > settings.sprintSpeed * .8f,
+                    Require(peakSpeed <= settings.dodgeSpeed + .02f && peakSpeed > 7.5f,
                         "Dodge peak speed is outside expected range: " + peakSpeed);
                     Require(startupVulnerable && middleProtected && recoveryVulnerable,
                         "Dodge invulnerability must cover only the middle of the roll.");
                     Require(roll.Action == RaidAction.Free, "Dodge did not finish on time.");
                 }
                 var asset = AssetDatabase.LoadAssetAtPath<RaidMovementSettings>("Assets/Settings/PlayerMovementSettings.asset");
-                Require(asset != null && asset.dodgeDistance > 3f && asset.dodgeSpeed > 6f &&
+                Require(asset != null && Mathf.Abs(asset.dodgeDistance - 4.68f) < .001f &&
+                    Mathf.Abs(asset.dodgeSeconds - 1f) < .001f && asset.dodgeSpeed >= 8f &&
                     asset.dodgeInvulnerableStart > 0f && asset.dodgeInvulnerableEnd < asset.dodgeSeconds,
                     "Player prefab dodge tuning is missing or invalid.");
                 var braced = new RaidMotorState { Stamina = 100f };

@@ -93,7 +93,8 @@ namespace ChainboundRaid
             { clip = activePresentation.getUp; getUpRemaining -= Time.deltaTime; }
             bool timedAttack = player.PresentedAttack != null && (action == RaidAction.Attack || action == RaidAction.StrongAttack);
             animationDriver?.Evaluate(displayedSpeed, clip, player.AttackPlayback.Value.Instance,
-                player.AttackNormalizedTime, timedAttack, Time.deltaTime);
+                player.AttackNormalizedTime, timedAttack, Time.deltaTime,
+                player.movementSettings != null ? player.movementSettings.dodgeSeconds : 1f);
             if (animationDriver != null)
             {
                 weaponAttachment?.ApplyCarryPose(displayedSpeed, action == RaidAction.Free && clip == null);
@@ -131,7 +132,8 @@ namespace ChainboundRaid
                     weaponSwing = -155f * Mathf.Sin(player.AttackNormalizedTime * Mathf.PI);
                     break;
                 case RaidAction.Dodge:
-                    angles.x = 65f * Mathf.Sin(Mathf.Clamp01(actionAge / 0.3f) * Mathf.PI);
+                    angles.x = 65f * Mathf.Sin(Mathf.Clamp01(actionAge /
+                        (player.movementSettings != null ? player.movementSettings.dodgeSeconds : 1f)) * Mathf.PI);
                     position.y -= 0.25f;
                     break;
                 case RaidAction.HitReaction:

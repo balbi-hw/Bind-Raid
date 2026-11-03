@@ -37,7 +37,8 @@ namespace ChainboundRaid
         { if (clip.IsValid()) graph.Connect(clip, 0, destination, input); }
         void DestroyClip(ref AnimationClipPlayable clip)
         { if (clip.IsValid()) graph.DestroyPlayable(clip); clip = default; }
-        public void Evaluate(float speed, AnimationClip clip, uint instance, float normalizedAttack, bool timedAttack, float dt)
+        public void Evaluate(float speed, AnimationClip clip, uint instance, float normalizedAttack, bool timedAttack,
+            float dt, float dodgeDuration = 0f)
         {
             if (!graph.IsValid()) return;
             float walkSpeed = Mathf.Max(.1f, profile.walkReferenceSpeed);
@@ -78,7 +79,8 @@ namespace ChainboundRaid
             mixer.SetInputWeight(1, newWeight); mixer.SetInputWeight(2, oldWeight);
             if (current.IsValid())
             {
-                current.SetSpeed(timedAttack ? 0f : 1f);
+                current.SetSpeed(timedAttack ? 0f :
+                    selected == profile.dodge && dodgeDuration > 0f ? selected.length / dodgeDuration : 1f);
                 if (timedAttack) current.SetTime(normalizedAttack * Mathf.Max(.001f, selected.length));
             }
             graph.Evaluate(dt);

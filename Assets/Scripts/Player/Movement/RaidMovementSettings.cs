@@ -7,11 +7,12 @@ namespace ChainboundRaid
     {
         public float walkSpeed = 5f;
         public float sprintSpeed = 7f;
-        public float dodgeSpeed = 6.4f;
-        public float dodgeDistance = 3.6f;
-        public float dodgeSeconds = .75f;
-        public float dodgeInvulnerableStart = .18f;
-        public float dodgeInvulnerableEnd = .55f;
+        public float dodgeSpeed = 8f;
+        public float dodgeDistance = 4.68f;
+        public float dodgeSeconds = 1f;
+        public float dodgeAccelerationSeconds = .1f;
+        public float dodgeInvulnerableStart = .24f;
+        public float dodgeInvulnerableEnd = .74f;
         public float gravity = -20f;
         public float maxStamina = 100f;
         public float staminaRecoveryPerSecond = 14f;
@@ -56,15 +57,14 @@ namespace ChainboundRaid
             float duration = Mathf.Max(.01f, settings.dodgeSeconds);
             float distance = Mathf.Max(0f, settings.dodgeDistance);
             if (distance <= 0f) return 0f;
-            float average = distance / duration;
-            float peak = Mathf.Max(average, Mathf.Min(Mathf.Max(0f, settings.dodgeSpeed), average * 2f));
-            float ramp = Mathf.Clamp(1f - average / peak, 0f, .5f);
-            float t = Mathf.Clamp01(elapsed / duration);
-            if (ramp < .0001f) return distance * t;
-            float area = t < ramp ? t * t / (2f * ramp) :
-                t <= 1f - ramp ? t - ramp * .5f :
-                1f - ramp - (1f - t) * (1f - t) / (2f * ramp);
-            return peak * duration * area;
+            float rise = Mathf.Clamp(settings.dodgeAccelerationSeconds, .001f, duration * .5f);
+            float minimumPeak = distance / (duration - rise * .5f);
+            float peak = Mathf.Clamp(settings.dodgeSpeed, minimumPeak, 2f * distance / duration);
+            float fall = Mathf.Clamp(2f * (duration - distance / peak) - rise, 0f, duration - rise);
+            float time = Mathf.Clamp(elapsed, 0f, duration);
+            if (time <= rise) return peak * time * time / (2f * rise);
+            if (time <= duration - fall) return peak * (time - rise * .5f);
+            return distance - peak * (duration - time) * (duration - time) / (2f * fall);
         }
 
         public static bool CanMove(RaidAction action) => action != RaidAction.Incapacitated &&
