@@ -1,9 +1,10 @@
-param([int]$TimeoutSeconds = 120)
+param([int]$TimeoutSeconds = 120, [string]$BuildRoot)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$serverExe = Join-Path $projectRoot 'Builds\Server\ChainboundRaidServer.exe'
-$clientExe = Join-Path $projectRoot 'Builds\Windows\ChainboundRaid.exe'
+$artifactRoot = if ($BuildRoot) { (Resolve-Path -LiteralPath $BuildRoot).Path } else { Join-Path $projectRoot 'Builds' }
+$serverExe = Join-Path $artifactRoot 'Server\ChainboundRaidServer.exe'
+$clientExe = Join-Path $artifactRoot 'Windows\ChainboundRaid.exe'
 if (-not (Test-Path -LiteralPath $serverExe) -or -not (Test-Path -LiteralPath $clientExe)) {
     throw 'Build the development client and dedicated server before running regression.'
 }

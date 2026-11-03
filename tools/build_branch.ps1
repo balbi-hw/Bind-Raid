@@ -16,12 +16,35 @@ if ($Branch -eq 'develop') {
     }
 } else {
     $project = Join-Path $root 'Builds/Worktrees/master'
+    $marker = Join-Path $project 'Builds/.branch-build-managed'
     if (-not (Test-Path -LiteralPath $project)) {
         & git -C $root worktree add --detach $project master
         if ($LASTEXITCODE -ne 0) { throw 'Could not create master worktree.' }
+        New-Item -ItemType Directory -Path (Join-Path $project 'Builds') -Force | Out-Null
+        'Managed by tools/build_branch.ps1' | Set-Content -LiteralPath $marker
     }
-    if (& git -C $project status --porcelain) {
-        throw 'Master worktree has changes; inspect it before building.'
+    if (-not (Test-Path -LiteralPath $marker)) {
+        throw 'Existing master worktree was not created by this script.'
+    }
+    $unityGenerated = @(
+        'Assets/Settings/PrototypeURP.asset',
+        'Assets/UniversalRenderPipelineGlobalSettings.asset',
+        'ProjectSettings/GraphicsSettings.asset',
+        'ProjectSettings/Packages/com.unity.testtools.codecoverage/Settings.json',
+        'ProjectSettings/ProjectSettings.asset',
+        'ProjectSettings/ShaderGraphSettings.asset'
+    )
+    $dirty = @(& git -C $project status --porcelain=v1 -uno | ForEach-Object { $_.Substring(3) })
+    $unexpected = @($dirty | Where-Object { $_ -notin $unityGenerated })
+    $untracked = @(& git -C $project ls-files --others --exclude-standard)
+    if ($unexpected.Count -gt 0 -or $untracked.Count -gt 0) {
+        throw 'Master worktree has non-generated changes; inspect it before building.'
+    }
+    if ($dirty.Count -gt 0) {
+        # Unity writes LF; this repository's Windows autocrlf checkout otherwise
+        # leaves the restored files appearing modified even when contents match.
+        & git -C $project -c core.autocrlf=false restore -- $dirty
+        if ($LASTEXITCODE -ne 0) { throw 'Could not restore Unity-generated master settings.' }
     }
     & git -C $project switch --detach master | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Could not update master worktree.' }
