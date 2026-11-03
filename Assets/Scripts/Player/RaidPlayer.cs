@@ -267,7 +267,7 @@ namespace ChainboundRaid
 
         public void ReceiveDamage(float basePower, float enemyAttack, bool knockdown = false)
         {
-            if (!IsServer || IsDown || (Action.Value == RaidAction.Dodge && motorState.ActionRemaining > 0f)) return;
+            if (!IsServer || IsDown || RaidMovementMotor.IsDodgeInvulnerable(motorState, movementSettings)) return;
             CancelAttackOnServer();
             CancelPullOnServer();
             StanceChanging.Value = false;

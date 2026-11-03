@@ -52,6 +52,42 @@ namespace ChainboundRaid.Editor
                 RaidMovementMotor.Step(ref dodge, new RaidMoveInput { Dodge = true },
                     settings, true, false, Vector3.forward, .02f);
                 Require(dodge.Stamina >= afterDodge, "Active dodge charged stamina twice.");
+                foreach (int rate in new[] { 30, 50, 120 })
+                {
+                    var roll = new RaidMotorState { Stamina = 100f };
+                    float travel = 0f;
+                    float peakSpeed = 0f;
+                    bool middleProtected = false;
+                    bool startupVulnerable = false;
+                    bool recoveryVulnerable = false;
+                    float dt = 1f / rate;
+                    for (int i = 0; i < Mathf.CeilToInt(settings.dodgeSeconds * rate) + 1; i++)
+                    {
+                        Vector3 delta = RaidMovementMotor.Step(ref roll,
+                            new RaidMoveInput { Direction = i == 0 ? Vector3.forward : Vector3.zero, Dodge = i == 0 },
+                            settings, true, false, Vector3.forward, dt);
+                        travel += delta.z;
+                        peakSpeed = Mathf.Max(peakSpeed, delta.z / dt);
+                        float elapsed = (i + 1) * dt;
+                        if (elapsed < settings.dodgeInvulnerableStart - dt)
+                            startupVulnerable |= !RaidMovementMotor.IsDodgeInvulnerable(roll, settings);
+                        if (elapsed > .25f && elapsed < .45f)
+                            middleProtected |= RaidMovementMotor.IsDodgeInvulnerable(roll, settings);
+                        if (elapsed > settings.dodgeInvulnerableEnd + dt && elapsed < settings.dodgeSeconds)
+                            recoveryVulnerable |= !RaidMovementMotor.IsDodgeInvulnerable(roll, settings);
+                    }
+                    Require(Mathf.Abs(travel - settings.dodgeDistance) < .002f,
+                        "Dodge distance depends on simulation rate: " + rate + " travel=" + travel);
+                    Require(peakSpeed <= settings.dodgeSpeed + .02f && peakSpeed > settings.sprintSpeed * .8f,
+                        "Dodge peak speed is outside expected range: " + peakSpeed);
+                    Require(startupVulnerable && middleProtected && recoveryVulnerable,
+                        "Dodge invulnerability must cover only the middle of the roll.");
+                    Require(roll.Action == RaidAction.Free, "Dodge did not finish on time.");
+                }
+                var asset = AssetDatabase.LoadAssetAtPath<RaidMovementSettings>("Assets/Settings/PlayerMovementSettings.asset");
+                Require(asset != null && asset.dodgeDistance > 3f && asset.dodgeSpeed > 6f &&
+                    asset.dodgeInvulnerableStart > 0f && asset.dodgeInvulnerableEnd < asset.dodgeSeconds,
+                    "Player prefab dodge tuning is missing or invalid.");
                 var braced = new RaidMotorState { Stamina = 100f };
                 var bracedMove = RaidMovementMotor.Step(ref braced, new RaidMoveInput { Direction = Vector3.right },
                     settings, true, true, Vector3.forward, .02f);

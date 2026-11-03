@@ -14,8 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ChainboundRaid.RaidMovementSettings
   walkSpeed: 5
   sprintSpeed: 7
-  dodgeSpeed: 3.6
+  dodgeSpeed: 6.4
+  dodgeDistance: 3.6
   dodgeSeconds: 0.75
+  dodgeInvulnerableStart: 0.18
+  dodgeInvulnerableEnd: 0.55
   gravity: -20
   maxStamina: 100
   staminaRecoveryPerSecond: 14
